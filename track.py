@@ -1,0 +1,67 @@
+import pygame
+import settings as s
+
+class Track:  #rename to match main
+    def __init__(self, image_path):
+        """
+        Loads an image and converts it into a 2D Grid (List of Lists).
+        Logic: Scans pixels based on TILE_SIZE to build the grid.
+        """
+        #define grid size
+        self.TILE_SIZE = 20  
+        self.cols = s.screen_width // self.TILE_SIZE
+        self.rows = s.screen_height // self.TILE_SIZE
+        
+        self.grid = []
+        
+        try:
+            #load image
+            self.surface = pygame.image.load(image_path)
+            #resize to fit screen
+            self.surface = pygame.transform.scale(self.surface, (s.screen_width, s.screen_height))
+            print(f"Track loaded. Generating {self.cols}x{self.rows} grid...")
+            self._image_to_grid()
+        except FileNotFoundError:
+            print(f"Error: Could not find {image_path}. Make sure the image is in the same folder.")
+            self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]#empty fallback
+
+    def _image_to_grid(self):
+        """Converts pixels to 0 (Wall), 1 (Road), 2 (Start), 3 (Finish)"""
+        self.grid = []
+        for r in range(self.rows):
+            row_data = []
+            for c in range(self.cols):
+                #check pixel at center of tile
+                px_x = c * self.TILE_SIZE + (self.TILE_SIZE // 2)
+                px_y = r * self.TILE_SIZE + (self.TILE_SIZE // 2)
+                
+                try:
+                    #get colour of pixel
+                    color = self.surface.get_at((px_x, px_y))
+                    rgb = (color.r, color.g, color.b)
+                    
+                    # compare colours to identify tile type
+                    if rgb == s.wall_colour:    #black = wall
+                        row_data.append(0)
+                    elif rgb == s.finish_colour: #green = finish
+                        row_data.append(3)
+                    elif rgb == s.blue:          #blue = start
+                        row_data.append(2)
+                    else:                        #red/grey = road
+                        row_data.append(1)
+                except IndexError:
+                    row_data.append(0) #off screen = wall
+            
+            self.grid.append(row_data)
+
+    def draw(self, screen):
+        """Visualise the grid for debugging"""
+        for r in range(self.rows):
+            for c in range(self.cols):
+                val = self.grid[r][c]
+                rect = (c * self.TILE_SIZE, r * self.TILE_SIZE, self.TILE_SIZE, self.TILE_SIZE)
+                
+                if val == 2: #start
+                    pygame.draw.rect(screen, s.blue, rect) 
+                elif val == 3: #finish
+                    pygame.draw.rect(screen, s.finish_colour, rect)
