@@ -56,6 +56,10 @@ class Track:  #rename to match main
 
     def draw(self, screen):
         """Visualise the grid for debugging"""
+        # 1. Draw the actual image of the track (walls and road)
+        screen.blit(self.surface, (0, 0))
+
+        # 2. Draw debug markers (Start/Finish) on top
         for r in range(self.rows):
             for c in range(self.cols):
                 val = self.grid[r][c]

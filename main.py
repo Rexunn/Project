@@ -3,80 +3,67 @@ import settings as s
 from track import Track
 from game_engine import PhysicsEngine
 from car import CarState
+from solver import AStarSolver # <--- IMPORT THE AI
 
 def main():
     pygame.init()
     screen = pygame.display.set_mode((s.screen_width, s.screen_height))
-    pygame.display.set_caption("Phase 2 Prototype: Grid Physics Test")
+    pygame.display.set_caption("Phase 3: AI Solver Prototype")
     clock = pygame.time.Clock()
 
-    #load track
+    # --- 1. SETUP ---
     track = Track("track.png")
-    
-
     engine = PhysicsEngine(track.grid)
     
-    #find start position
-    start_x, start_y = 5, 5 # Default
+    # Find Start Position
+    start_x, start_y = 5, 5
     for r in range(track.rows):
         for c in range(track.cols):
-            if track.grid[r][c] == 2:
+            if track.grid[r][c] == 2: # Start
                 start_x, start_y = c, r
                 break
 
-    car = CarState(start_x, start_y, 0, 0)
+    start_state = CarState(start_x, start_y, 0, 0)
+    car = start_state
 
-
+    # --- 2. AI CALCULATION ---
+    # We solve the path BEFORE the game loop starts
+    solver = AStarSolver(engine)
+    path = solver.solve(start_state)
+    
+    path_index = 0 # Keeps track of which step we are showing
+    
+    # --- 3. ANIMATION LOOP ---
     running = True
     while running:
-        #controller
-        action_taken = False
-        ax, ay = 0, 0
-        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:  ax = -1
-                if event.key == pygame.K_RIGHT: ax = 1
-                if event.key == pygame.K_UP:    ay = -1
-                if event.key == pygame.K_DOWN:  ay = 1
-                
-                # If a key was pressed, attempt a move
-                if ax != 0 or ay != 0:
-                    action_taken = True
 
-        #model
-        if action_taken:
-
-            next_vx = car.vx + ax
-            next_vy = car.vy + ay
-            next_x = car.x + next_vx
-            next_y = car.y + next_vy
-
-            if engine._is_valid(next_x, next_y):
-                car = CarState(next_x, next_y, next_vx, next_vy)
-                print(f"Move Accepted: Pos({car.x}, {car.y}) Vel({car.vx}, {car.vy})")
-            else:
-                print("CRASH! Move invalid (Wall or Boundary)")
-                #in real game, might reset the car here
-                #car = CarState(start_x, start_y, 0, 0)
-
-        #view
-        screen.fill(s.gray) 
-        #draw grid
-        track.draw(screen)
+        # AUTO-PLAY LOGIC
+        # Every few frames, move to the next step in the AI's path
+        if path and path_index < len(path):
+            # Slow down the replay so we can see it (only update every 5 ticks)
+            # OR just update every frame if you want it fast
+            car = path[path_index]
+            path_index += 1
+            pygame.time.delay(100) # Simple delay to make it watchable
         
-        #draw car
+        # --- DRAWING ---
+        screen.fill(s.gray) # Red background
+        track.draw(screen)  # Draw Black Track + Start/Finish
+        
+        # Draw Car
         pixel_x = car.x * track.TILE_SIZE + (track.TILE_SIZE // 2)
         pixel_y = car.y * track.TILE_SIZE + (track.TILE_SIZE // 2)
         
-        pygame.draw.circle(screen, s.red, (pixel_x, pixel_y), track.TILE_SIZE // 2)
+        pygame.draw.circle(screen, s.white, (pixel_x, pixel_y), track.TILE_SIZE // 2)
         
-        #draw velocity vector
-        end_pos = (pixel_x + car.vx * track.TILE_SIZE, pixel_y + car.vy * track.TILE_SIZE)
-        pygame.draw.line(screen, s.white, (pixel_x, pixel_y), end_pos, 2)
+        # Draw Path History (Optional: draw dots where the car will go)
+        for step in path:
+            px = step.x * track.TILE_SIZE + (track.TILE_SIZE // 2)
+            py = step.y * track.TILE_SIZE + (track.TILE_SIZE // 2)
+            pygame.draw.circle(screen, (255, 255, 0), (px, py), 2)
 
         pygame.display.flip()
         clock.tick(s.fps)
