@@ -20,3 +20,7 @@ class CarState:
     #helper for debugging
     def __repr__(self):
         return f"Car(x={self.x}, y={self.y}, vx={self.vx}, vy={self.vy})"
+    
+
+    def __lt__(self, other):
+        return False  # don't care which car comes first if scores are equal
