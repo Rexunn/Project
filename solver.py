@@ -76,49 +76,49 @@ class AStarSolver:
         print(f"  > Detected {len(clusters)} Checkpoint Islands for value {tile_value}.")
         return clusters
 
-    def astar_search(self, start_state, goal_tile_value):
-        print("AI is calculating path... (This might take a moment)")
-        
-        self.set_goals(goal_tile_value)
+    def set_goals_from_list(self, coords_list):
+        """Directly sets the target pixels from a list of (x,y) tuples"""
+        self.current_goals = coords_list
+
+    def astar_search(self, start_state, target_coords):
+        self.set_goals_from_list(target_coords)
         
         if not self.current_goals:
-            print(f"Error: Target type {goal_tile_value} not found on track!")
-            return None # Which pixels are we looking for
+            return None
 
-        # Standard A* setup
-        queue = PriorityQueue()# (f_score, step_count, current_state) stepcount = tie-breaker so it doesn't crash comparing states
+        queue = PriorityQueue()
         queue.put((0, 0, start_state))
-        # Came_from stores: {current_state: previous_state} to rebuild path later
-        came_from = {}
-        came_from[start_state] = None
-        # Cost_so_far stores: {state: cost_to_get_here}
-        cost_so_far = {}
-        cost_so_far[start_state] = 0
+        came_from = {start_state: None}
+        cost_so_far = {start_state: 0}
         steps_explored = 0
 
         while not queue.empty():
             _, _, current = queue.get()
             steps_explored += 1
 
-            # Check if we hit rquested tile)
-            if self.engine.track[current.y][current.x] == goal_tile_value:
-                #print(f"Goal found! Explored {steps_explored} states.")
+            # UPDATE CHECK: Is current position in  target list?
+            if (current.x, current.y) in self.current_goals: 
                 return self._reconstruct_path(came_from, current)
 
-            # Get all valid next moves (Physics Engine logic)
-            neighbors = self.engine.get_legal_moves(current)
-            
-            for next_state in neighbors:
-                new_cost = cost_so_far[current] + 1 # Each move costs 1
-                
+            for next_state in self.engine.get_legal_moves(current):
+                new_cost = cost_so_far[current] + 1
                 if next_state not in cost_so_far or new_cost < cost_so_far[next_state]:
                     cost_so_far[next_state] = new_cost
                     priority = new_cost + self.heuristic(next_state)
                     queue.put((priority, steps_explored, next_state))
                     came_from[next_state] = current
+        return None
 
-        print("No path found.")
-        return []
+    def solve(self, start_state):
+        print("--- DEBUG MODE: Simple Finish Search ---")
+        # Manually find Green pixels to pass to new asearch
+        finish_pixels = []
+        for y in range(self.rows):
+            for x in range(self.cols):
+                if self.engine.track[y][x] == 3:
+                    finish_pixels.append((x, y))
+                    
+        return self.astar_search(start_state, finish_pixels)
 
     def _reconstruct_path(self, came_from, current):
         """Backtracks from the goal to the start to build the list of moves"""
