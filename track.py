@@ -26,33 +26,42 @@ class Track:  #rename to match main
             self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]#empty fallback
 
     def _image_to_grid(self):
-        """Converts pixels to 0 (Wall), 1 (Road), 2 (Start), 3 (Finish)"""
+        """converts pixels to grid values using fuzzy color matching"""
         self.grid = []
         for r in range(self.rows):
             row_data = []
             for c in range(self.cols):
-                #check pixel at center of tile
                 px_x = c * self.TILE_SIZE + (self.TILE_SIZE // 2)
                 px_y = r * self.TILE_SIZE + (self.TILE_SIZE // 2)
                 
                 try:
-                    #get colour of pixel
                     color = self.surface.get_at((px_x, px_y))
                     rgb = (color.r, color.g, color.b)
                     
-                    # compare colours to identify tile type
-                    if rgb == s.wall_colour:    #black = wall
+                    # fuzzy matching - checks ranges instead of exact values
+                    
+                    # check for black (wall) - very low light
+                    if rgb[0] < 50 and rgb[1] < 50 and rgb[2] < 50:
                         row_data.append(0)
-                    elif rgb == s.finish_colour: #green = finish
-                        row_data.append(3)
-                    elif rgb == s.blue:          #blue = start
-                        row_data.append(2)
-                    elif rgb == s.checkpoint_colour: # yellow = checkpoint <--- NEW
+                        
+                    # check for yellow (checkpoint) - high red, high green, low blue
+                    elif rgb[0] > 200 and rgb[1] > 200 and rgb[2] < 100:
                         row_data.append(4)
-                    else:                        #red/grey = road
+                        
+                    # check for green (finish) - low red, high green, low blue
+                    elif rgb[0] < 100 and rgb[1] > 200 and rgb[2] < 100:
+                        row_data.append(3)
+                        
+                    # check for blue (start) - low red, low green, high blue
+                    elif rgb[0] < 100 and rgb[1] < 100 and rgb[2] > 200:
+                        row_data.append(2)
+                        
+                    # everything else is road (red/gray)
+                    else:
                         row_data.append(1)
+                        
                 except IndexError:
-                    row_data.append(0) #off screen = wall
+                    row_data.append(0) #off screen
             
             self.grid.append(row_data)
 
