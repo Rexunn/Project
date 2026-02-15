@@ -110,15 +110,72 @@ class AStarSolver:
         return None
 
     def solve(self, start_state):
-        print("--- DEBUG MODE: Simple Finish Search ---")
-        # Manually find Green pixels to pass to new asearch
+        print("--- STARTING SMART CHECKPOINT SOLVER ---")
+        
+        # 1. Detect all Yellow Checkpoints (Value 4)
+        checkpoints = self._get_clusters(4) # Returns list of lists
+        
+        full_path = []
+        current_start = start_state
+        checkpoint_counter = 1
+
+        # 2. Visit Checkpoints one by one (Greedy Nearest Neighbor)
+        while checkpoints:
+            # Find which cluster is closest to our CURRENT position
+            best_cluster = None
+            min_dist = float('inf')
+            
+            for cluster in checkpoints:
+                # Calculate distance from car to the first pixel of this cluster
+                cx, cy = cluster[0]
+                dist = abs(current_start.x - cx) + abs(current_start.y - cy)
+                if dist < min_dist:
+                    min_dist = dist
+                    best_cluster = cluster
+            
+            print(f"Heading to Checkpoint {checkpoint_counter}...")
+            
+            # Go to that checkpoint
+            segment = self.astar_search(current_start, best_cluster)
+            
+            if not segment:
+                print(f"Error: Could not reach Checkpoint {checkpoint_counter}!")
+                return []
+            
+            # Add to path
+            if full_path:
+                full_path += segment[1:]
+            else:
+                full_path += segment
+                
+            # Update state
+            current_start = segment[-1]
+            checkpoints.remove(best_cluster) # Mark as "Done"
+            print(f"Checkpoint {checkpoint_counter} Cleared!")
+            checkpoint_counter += 1
+
+        # 3. Finally, go to Finish (Green - Value 3)
+        print("All checkpoints done. Heading to Finish (Green)...")
+        
         finish_pixels = []
         for y in range(self.rows):
             for x in range(self.cols):
                 if self.engine.track[y][x] == 3:
                     finish_pixels.append((x, y))
                     
-        return self.astar_search(start_state, finish_pixels)
+        final_segment = self.astar_search(current_start, finish_pixels)
+        
+        if not final_segment:
+            print("Error: Could not reach Finish line.")
+            return []
+
+        if full_path:
+            full_path += final_segment[1:]
+        else:
+            full_path += final_segment
+            
+        print(f"RACE COMPLETE! Total Time: {len(full_path)} steps.")
+        return full_path
 
     def _reconstruct_path(self, came_from, current):
         """Backtracks from the goal to the start to build the list of moves"""
