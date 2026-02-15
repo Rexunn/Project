@@ -14,12 +14,14 @@ gray = (255, 0, 0)  #road
 red = (255, 0, 0)
 green = (0, 255, 0)  # finish line
 blue = (0, 0, 255)
+yellow = (255, 255, 0) #checkpoints
 
 #GAME SPECIFIC COLOURS
 bg_colour = white
 wall_colour = black
 finish_colour = green
 track_colour = gray
+checkpoint_colour = yellow
 
 #GHOST COLOURS
 ghost = (100, 100, 255, 150)  #semi-transparent blue
