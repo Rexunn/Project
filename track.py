@@ -47,6 +47,8 @@ class Track:  #rename to match main
                         row_data.append(3)
                     elif rgb == s.blue:          #blue = start
                         row_data.append(2)
+                    elif rgb == s.checkpoint_colour: # yellow = checkpoint <--- NEW
+                        row_data.append(4)
                     else:                        #red/grey = road
                         row_data.append(1)
                 except IndexError:
