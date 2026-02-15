@@ -10,7 +10,7 @@ class PhysicsEngine:
 
     def get_legal_moves(self, current_state):
         next_states = []
-        acceleration_options = [-1, 0, 1]
+        acceleration_options = [-2, -1, 0, 1, 2]  # Increased from ±1 for better maneuverability
 
         for ax in acceleration_options:
             for ay in acceleration_options:

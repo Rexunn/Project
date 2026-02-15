@@ -26,46 +26,70 @@ class Track:  #rename to match main
             self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]#empty fallback
 
     def _image_to_grid(self):
-        """converts pixels to grid values using fuzzy color matching"""
+        """
+        Scans the ENTIRE 20x20 tile for walls, not just the center dot.
+        This fixes the 'Thin Wall' problem by inflating walls to fill the grid.
+        """
         self.grid = []
         for r in range(self.rows):
             row_data = []
             for c in range(self.cols):
-                px_x = c * self.TILE_SIZE + (self.TILE_SIZE // 2)
-                px_y = r * self.TILE_SIZE + (self.TILE_SIZE // 2)
-                
-                try:
-                    color = self.surface.get_at((px_x, px_y))
-                    rgb = (color.r, color.g, color.b)
-                    
-                    # --- UPDATED SENSITIVITY ---
-                    
-                    # 1. WALLS (Black/Dark Grey)
-                    # Increased threshold from 50 to 120. 
-                    # This makes dark grey pixels count as walls, effectively "thickening" them.
-                    if rgb[0] < 120 and rgb[1] < 120 and rgb[2] < 120:
-                        row_data.append(0)
-                        
-                    # 2. CHECKPOINT (Yellow)
-                    elif rgb[0] > 200 and rgb[1] > 200 and rgb[2] < 100:
-                        row_data.append(4)
-                        
-                    # 3. FINISH (Green)
-                    elif rgb[0] < 100 and rgb[1] > 200 and rgb[2] < 100:
-                        row_data.append(3)
-                        
-                    # 4. START (Blue)
-                    elif rgb[0] < 100 and rgb[1] < 100 and rgb[2] > 200:
-                        row_data.append(2)
-                        
-                    # 5. ROAD
-                    else:
-                        row_data.append(1)
-                        
-                except IndexError:
-                    row_data.append(0) #off screen
-            
+
+                # Default to Road (1)
+                tile_value = 1
+
+                # SCANNER: Check a 3x3 grid of sample points within the tile
+                # This ensures we catch the line even if it's off-center
+                found_wall = False
+                found_checkpoint = False
+                found_finish = False
+                found_start = False
+
+                # Define sample offsets (Top-Left, Center, Bottom-Right, etc.)
+                offsets = [5, 10, 15]
+
+                for dy in offsets:
+                    for dx in offsets:
+                        px_x = c * self.TILE_SIZE + dx
+                        px_y = r * self.TILE_SIZE + dy
+
+                        try:
+                            color = self.surface.get_at((px_x, px_y))
+                            rgb = (color.r, color.g, color.b)
+
+                            # PRIORITY 1: WALL (Black)
+                            if rgb[0] < 80 and rgb[1] < 80 and rgb[2] < 80:
+                                found_wall = True
+
+                            # PRIORITY 2: CHECKPOINT (Yellow)
+                            elif rgb[0] > 200 and rgb[1] > 200 and rgb[2] < 100:
+                                found_checkpoint = True
+
+                            # PRIORITY 3: FINISH (Green)
+                            elif rgb[0] < 100 and rgb[1] > 200 and rgb[2] < 100:
+                                found_finish = True
+
+                            # PRIORITY 4: START (Blue)
+                            elif rgb[0] < 100 and rgb[1] < 100 and rgb[2] > 200:
+                                found_start = True
+
+                        except IndexError:
+                            pass # Ignore off-screen
+
+                # DECISION LOGIC: Wall overrides everything
+                if found_wall:
+                    tile_value = 0
+                elif found_checkpoint:
+                    tile_value = 4
+                elif found_finish:
+                    tile_value = 3
+                elif found_start:
+                    tile_value = 2
+
+                row_data.append(tile_value)
+
             self.grid.append(row_data)
+
     def draw(self, screen):
         """Visualise the grid for debugging"""
         # 1. Draw the actual image of the track (walls and road)
@@ -76,8 +100,8 @@ class Track:  #rename to match main
             for c in range(self.cols):
                 val = self.grid[r][c]
                 rect = (c * self.TILE_SIZE, r * self.TILE_SIZE, self.TILE_SIZE, self.TILE_SIZE)
-                
+
                 if val == 2: #start
-                    pygame.draw.rect(screen, s.blue, rect) 
+                    pygame.draw.rect(screen, s.blue, rect)
                 elif val == 3: #finish
                     pygame.draw.rect(screen, s.finish_colour, rect)

@@ -10,7 +10,7 @@ fps = 30  #no need for fast frames for turn based
 #COLOURS -- predefined
 white = (255, 255, 255)
 black = (0, 0, 0) #walls
-gray = (255, 0, 0)  #road
+gray = (128, 128, 128)  #road
 red = (255, 0, 0)
 green = (0, 255, 0)  # finish line
 blue = (0, 0, 255)

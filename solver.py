@@ -21,7 +21,7 @@ class AStarSolver:
         return min_dist / 3.0 
 
     def _get_clusters(self, tile_value):
-        """groups connected pixels into separate checkpoints"""
+        #groups pixels into separate islands (checkpoints)
         all_pixels = set()
         for y in range(self.rows):
             for x in range(self.cols):
@@ -43,9 +43,6 @@ class AStarSolver:
                         current_cluster.add((nx, ny))
                         queue.append((nx, ny))
             clusters.append(list(current_cluster))
-        
-        #debug print
-        print(f"DEBUG: Found {len(clusters)} checkpoint islands.")
         return clusters
 
     def astar_search(self, start_state, target_coords, avoid_tile=None):
@@ -60,15 +57,15 @@ class AStarSolver:
         while not queue.empty():
             _, _, current = queue.get()
             
-            #check if we hit target
+            #check target
             if (current.x, current.y) in self.current_goals: 
                 return self._reconstruct_path(came_from, current)
 
             for next_state in self.engine.get_legal_moves(current):
-                #NEW: check for avoidance tile (e.g. dont cross finish line backwards)
+                #avoidance check (e.g. dont hit finish line yet)
                 if avoid_tile is not None:
                      if self.engine.track[next_state.y][next_state.x] == avoid_tile:
-                         continue #treat as wall
+                         continue 
 
                 new_cost = cost_so_far[current] + 1
                 if next_state not in cost_so_far or new_cost < cost_so_far[next_state]:
@@ -80,14 +77,17 @@ class AStarSolver:
 
     def solve(self, start_state):
         print("--- STARTING SOLVER ---")
-        
+
         #phase 1: hunt yellow checkpoints
-        checkpoints = self._get_clusters(4) 
-        
+        checkpoints = self._get_clusters(4)
+        print(f"Found {len(checkpoints)} checkpoint cluster(s)")
+
         full_path = []
         current_start = start_state
-        
+
+        checkpoint_num = 0
         while checkpoints:
+            checkpoint_num += 1
             #find nearest cluster
             best_cluster = None
             min_dist = float('inf')
@@ -97,48 +97,56 @@ class AStarSolver:
                 if dist < min_dist:
                     min_dist = dist
                     best_cluster = cluster
-            
-            print("Heading to Checkpoint (Avoiding Finish Line)...")
-            
-            #pass avoid_tile=3 (Green) so car doesn't shortcut
+
+            print(f"Heading to Checkpoint {checkpoint_num}/{checkpoint_num + len(checkpoints) - 1}...")
+            #avoid finish line (3) so we don't shortcut
             segment = self.astar_search(current_start, best_cluster, avoid_tile=3)
-            
-            if not segment: 
-                print("Error: Could not reach checkpoint!")
+
+            if not segment:
+                print("Error: Path to checkpoint blocked.")
                 return []
-            
+
             full_path += segment[1:] if full_path else segment
             current_start = segment[-1]
             checkpoints.remove(best_cluster)
+            print(f"Checkpoint {checkpoint_num} reached! Remaining: {len(checkpoints)}")
 
         #phase 2: hunt finish (green)
-        print("Checkpoints cleared. Heading to Finish.")
+        print("\n=== ALL CHECKPOINTS CLEARED ===")
+        print(f"Current car state: position=({current_start.x}, {current_start.y}), velocity=({current_start.vx}, {current_start.vy})")
+        print("Heading to Finish Line...")
         finish_pixels = []
         for y in range(self.rows):
             for x in range(self.cols):
                 if self.engine.track[y][x] == 3:
                     finish_pixels.append((x, y))
-        
-        #fail checks
-        if not finish_pixels:
-            print("Error: No finish line found on track!")
-            return []
 
-        #allow crossing finish line now (avoid_tile=None)
+        print(f"Found {len(finish_pixels)} finish line pixel(s)")
+        print(f"Finish line is at positions: {finish_pixels[:5]}..." if len(finish_pixels) > 5 else f"Finish line is at: {finish_pixels}")
+
+        if not finish_pixels:
+            print("WARNING: No finish line found on track!")
+            return full_path
+
+        #now allowed to cross finish line
+        print(f"Attempting to path from ({current_start.x}, {current_start.y}) with velocity ({current_start.vx}, {current_start.vy})...")
         final_segment = self.astar_search(current_start, finish_pixels, avoid_tile=None)
-        
+
         if not final_segment:
-            print("CRITICAL ERROR: AI Stuck at Checkpoint. Cannot reach Finish.")
-            return [] #RETURN EMPTY LIST so game doesn't fake a win
-            
-        print("Path Found!")
-        return full_path + final_segment[1:]
+            print("ERROR: Cannot find path to finish line!")
+            return full_path
+
+        print(f"SUCCESS! Path to finish found ({len(final_segment)} steps)")
+        complete_path = full_path + final_segment[1:]
+        print(f"\n=== PATH COMPLETE ===")
+        print(f"Total path length: {len(complete_path)} steps")
+        return complete_path
 
     def _reconstruct_path(self, came_from, current):
-        #backtrack from goal to start to build the path
+        """Backtrack from goal to start"""
         path = []
         while current is not None:
             path.append(current)
             current = came_from[current]
-        path.reverse() #reverse list so it starts from the beginning
+        path.reverse()
         return path
