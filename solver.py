@@ -7,11 +7,8 @@ class AStarSolver:
         self.engine = engine
         self.cols = engine.cols
         self.rows = engine.rows
+        self.current_goals = [] #generic list to accomodate checkpoints        
         
-        self.current_goals = [] #generic list to accomodate checkpoints        for y in range(self.rows):
-            for x in range(self.cols):
-                if self.engine.track[y][x] == 3: # 3 is Finish Line
-                    self.current_goals.append((x, y))
     
     def set_goals(self, tile_value):
         """Updates list of target coordinates based on tile type"""

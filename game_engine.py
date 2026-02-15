@@ -2,36 +2,39 @@ from car import CarState
 
 class PhysicsEngine:
     def __init__(self, track_grid):
-        """
-        track_grid: A 2D list (grid[y][x]) where:
-        0 = Wall/Grass (Crash)
-        1 = Road (Safe)
-        2 = Start
-        3 = Finish
-        """
         self.track = track_grid
         self.rows = len(track_grid)
         self.cols = len(track_grid[0])
+        
+        #state switch system - used to toggle traps/walls
+        #any tile in this set kills the car
+        #default: 0 is wall. we can add '5' for spikes later
+        self.lethal_tiles = {0} 
+
+    def set_lethal(self, tile_value, is_lethal):
+        """
+        turns a tile type ON (deadly) or OFF (safe)
+        """
+        if is_lethal:
+            self.lethal_tiles.add(tile_value)
+        else:
+            self.lethal_tiles.discard(tile_value)
 
     def get_legal_moves(self, current_state):
-        """
-        Returns a list of all valid CarState objects reachable from the current state.
-        Considers all 9 possible acceleration combinations (-1, 0, 1).
-        """
         next_states = []
         acceleration_options = [-1, 0, 1]
 
         for ax in acceleration_options:
             for ay in acceleration_options:
-                #calculate new Velocity
+                #calculate new velocity
                 new_vx = current_state.vx + ax
                 new_vy = current_state.vy + ay
                 
-                #calculate new Position
+                #calculate new position
                 new_x = current_state.x + new_vx
                 new_y = current_state.y + new_vy
                 
-                #validation Check
+                #validation check
                 if self._is_valid(new_x, new_y):
                     new_state = CarState(new_x, new_y, new_vx, new_vy)
                     next_states.append(new_state)
@@ -39,13 +42,14 @@ class PhysicsEngine:
         return next_states
 
     def _is_valid(self, x, y):
-        """Internal helper to check boundaries and walls"""
-        #check Boundaries
+        #check boundaries
         if x < 0 or x >= self.cols or y < 0 or y >= self.rows:
             return False
             
-        #check Wall Collision (0 is Wall)
-        if self.track[y][x] == 0: 
+        #check dynamic lethality
+        #if tile is in kill list, it's a wall
+        #otherwise it's safe (even if it's finish line or trap)
+        if self.track[y][x] in self.lethal_tiles: 
             return False
             
         return True
