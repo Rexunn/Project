@@ -38,25 +38,27 @@ class Track:  #rename to match main
                     color = self.surface.get_at((px_x, px_y))
                     rgb = (color.r, color.g, color.b)
                     
-                    # fuzzy matching - checks ranges instead of exact values
+                    # --- UPDATED SENSITIVITY ---
                     
-                    # check for black (wall) - very low light
-                    if rgb[0] < 50 and rgb[1] < 50 and rgb[2] < 50:
+                    # 1. WALLS (Black/Dark Grey)
+                    # Increased threshold from 50 to 120. 
+                    # This makes dark grey pixels count as walls, effectively "thickening" them.
+                    if rgb[0] < 120 and rgb[1] < 120 and rgb[2] < 120:
                         row_data.append(0)
                         
-                    # check for yellow (checkpoint) - high red, high green, low blue
+                    # 2. CHECKPOINT (Yellow)
                     elif rgb[0] > 200 and rgb[1] > 200 and rgb[2] < 100:
                         row_data.append(4)
                         
-                    # check for green (finish) - low red, high green, low blue
+                    # 3. FINISH (Green)
                     elif rgb[0] < 100 and rgb[1] > 200 and rgb[2] < 100:
                         row_data.append(3)
                         
-                    # check for blue (start) - low red, low green, high blue
+                    # 4. START (Blue)
                     elif rgb[0] < 100 and rgb[1] < 100 and rgb[2] > 200:
                         row_data.append(2)
                         
-                    # everything else is road (red/gray)
+                    # 5. ROAD
                     else:
                         row_data.append(1)
                         
@@ -64,7 +66,6 @@ class Track:  #rename to match main
                     row_data.append(0) #off screen
             
             self.grid.append(row_data)
-
     def draw(self, screen):
         """Visualise the grid for debugging"""
         # 1. Draw the actual image of the track (walls and road)

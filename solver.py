@@ -100,11 +100,11 @@ class AStarSolver:
             
             print("Heading to Checkpoint (Avoiding Finish Line)...")
             
-            #pass avoid_tile=3 (Green) so car doesn't shortcut through finish
+            #pass avoid_tile=3 (Green) so car doesn't shortcut
             segment = self.astar_search(current_start, best_cluster, avoid_tile=3)
             
             if not segment: 
-                print("Error: Path blocked or checkpoint unreachable.")
+                print("Error: Could not reach checkpoint!")
                 return []
             
             full_path += segment[1:] if full_path else segment
@@ -118,15 +118,27 @@ class AStarSolver:
             for x in range(self.cols):
                 if self.engine.track[y][x] == 3:
                     finish_pixels.append((x, y))
-                    
+        
+        #fail checks
+        if not finish_pixels:
+            print("Error: No finish line found on track!")
+            return []
+
         #allow crossing finish line now (avoid_tile=None)
         final_segment = self.astar_search(current_start, finish_pixels, avoid_tile=None)
-        return full_path + final_segment[1:] if final_segment else full_path
+        
+        if not final_segment:
+            print("CRITICAL ERROR: AI Stuck at Checkpoint. Cannot reach Finish.")
+            return [] #RETURN EMPTY LIST so game doesn't fake a win
+            
+        print("Path Found!")
+        return full_path + final_segment[1:]
 
     def _reconstruct_path(self, came_from, current):
+        #backtrack from goal to start to build the path
         path = []
         while current is not None:
             path.append(current)
             current = came_from[current]
-        path.reverse()
+        path.reverse() #reverse list so it starts from the beginning
         return path
