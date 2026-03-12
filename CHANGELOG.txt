@@ -1,0 +1,35 @@
+CHANGELOG - Racetrack AI Project
+=================================
+
+2026-03-12 | GA Track Generator with Timing Debug
+--------------------------------------------------
+- Created ga.py with Chromosome and GeneticAlgorithm classes
+- Chromosome represents a track as a 2D grid (0=wall, 1=road, 2=start, 3=finish)
+- GA evolves population of 20 grids over 35 generations
+- Fitness scored by A* solvability: unsolvable = 0, longer path = higher score
+- Tournament selection, single-point crossover, random mutation, elitism
+- Added per-generation timer to profile performance bottlenecks
+- Updated track.py: added Track.from_grid() classmethod to build tracks from GA grids
+- Updated solver.py: astar_search() and solve() now return explored states for debug
+- Updated main.py: added GENERATING state, N key on menu, ghost visualization (G key)
+
+2026-03-12 | Block-Based Generation for Wider Corridors
+--------------------------------------------------------
+- Changed random_grid() to generate in 3x3 blocks instead of individual tiles
+- Guarantees corridors are at least 3 tiles wide (driveable by humans)
+- Updated mutate() to flip 3x3 blocks to preserve corridor width
+- Added fitness penalty for narrow single-tile gaps, bonus for wide corridors
+- Generation time dropped from ~55s to ~7s (block grids are simpler for A*)
+
+2026-03-12 | Waypoint-Based Loop Track Generation
+--------------------------------------------------
+- Rewrote Chromosome class: tracks are now defined by 8 waypoints in a loop
+- Waypoints placed in a rough circle with random jitter for variety
+- Grid built by carving 4-tile-wide corridors between consecutive waypoints
+- Last waypoint loops back to first = closed racing circuit
+- Start at waypoint 0, finish at last waypoint, checkpoints at every other waypoint
+- Crossover changed to uniform (mix waypoints from two parents)
+- Mutation now shifts waypoint positions by up to 5 tiles (creates meanders)
+- Fitness rewards path length + direction changes (more turns = better circuit)
+- Removed early exit threshold (loop tracks need full evolution)
+- All 10/10 tracks solvable in testing, total time ~8s

@@ -1,4 +1,5 @@
 import random
+import math
 import time
 from game_engine import PhysicsEngine
 from car import CarState
@@ -6,77 +7,138 @@ from solver import AStarSolver
 import settings as s
 
 # --- CHROMOSOME CLASS ---
-# A chromosome is one candidate track, stored as a 2D grid.
-# The GA evolves a population of these to find solvable, interesting tracks.
+# A chromosome is a LOOP TRACK defined by waypoints.
+# Waypoints sit roughly in a circle. Corridors are carved between them.
+# The GA evolves waypoint positions to create varied, driveable circuits.
 
 class Chromosome:
     """
-    Represents a single track layout as a 2D grid.
-    Grid values: 0=wall, 1=road, 2=start, 3=finish
-    The GA will evolve these grids until A* can solve them.
+    Represents a racing circuit as a loop of waypoints.
+    The grid is built by carving wide corridors between consecutive waypoints,
+    then looping the last waypoint back to the first = closed circuit.
+
+    Grid values: 0=wall, 1=road, 2=start, 3=finish, 4=checkpoint
     """
-    def __init__(self, cols, rows):
+    def __init__(self, cols, rows, num_waypoints=8):
         self.cols = cols
         self.rows = rows
+        self.num_waypoints = num_waypoints
+        self.waypoints = []  #list of (x, y) positions defining the loop
         self.grid = []
         self.fitness = 0
+        self.start_pos = None
+        self.finish_pos = None
 
-        # Fixed positions for start and finish (bottom third, separated)
-        self.start_pos = (3, rows - 4)
-        self.finish_pos = (cols - 4, rows - 4)
+    def random_waypoints(self):
+        """
+        Place waypoints in a rough circle around the center of the grid.
+        Each waypoint gets a random offset so no two tracks look the same.
+        """
+        cx = self.cols // 2   #center x
+        cy = self.rows // 2   #center y
+        # Radius leaves room for border walls and corridor width
+        radius_x = cx - 6
+        radius_y = cy - 6
 
-    def random_grid(self):
-        """Generate a random grid with walls on the border and random interior tiles"""
-        self.grid = []
-        for r in range(self.rows):
-            row = []
-            for c in range(self.cols):
-                # Border cells are always walls (enclosed track)
-                if r == 0 or r == self.rows - 1 or c == 0 or c == self.cols - 1:
-                    row.append(0)
-                else:
-                    # 45% chance of wall, 55% road
-                    row.append(0 if random.random() < 0.45 else 1)
-            self.grid.append(row)
+        self.waypoints = []
+        for i in range(self.num_waypoints):
+            # Evenly spaced angles around the circle
+            angle = (2 * math.pi * i) / self.num_waypoints
 
-        # Stamp start and finish positions (and clear a small area around them)
-        self._place_marker(self.start_pos, 2)
-        self._place_marker(self.finish_pos, 3)
+            # Base position on the circle + random jitter for variety
+            wx = int(cx + radius_x * math.cos(angle)) + random.randint(-4, 4)
+            wy = int(cy + radius_y * math.sin(angle)) + random.randint(-4, 4)
+
+            # Clamp inside the grid (leave room for borders + corridor width)
+            wx = max(4, min(self.cols - 5, wx))
+            wy = max(4, min(self.rows - 5, wy))
+
+            self.waypoints.append((wx, wy))
+
+        self._build_grid()
         return self
 
-    def _place_marker(self, pos, value):
-        """Place a start/finish marker and clear surrounding tiles to road"""
-        cx, cy = pos
-        # Clear a 3x3 area around the marker so the car can actually reach it
-        for dy in range(-1, 2):
-            for dx in range(-1, 2):
-                nx, ny = cx + dx, cy + dy
-                if 0 < nx < self.cols - 1 and 0 < ny < self.rows - 1:
-                    self.grid[ny][nx] = 1  #road
-        # Place the actual marker in the center
-        self.grid[cy][cx] = value
+    def _build_grid(self):
+        """Convert waypoints into a full grid by carving corridors between them"""
+        # Start with all walls
+        self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+
+        # Carve corridors between consecutive waypoints (loop back to first)
+        for i in range(len(self.waypoints)):
+            p1 = self.waypoints[i]
+            p2 = self.waypoints[(i + 1) % len(self.waypoints)]
+            self._carve_corridor(p1, p2, width=4)
+
+        # Border walls (ensure the track is fully enclosed)
+        for r in range(self.rows):
+            self.grid[r][0] = 0
+            self.grid[r][self.cols - 1] = 0
+        for c in range(self.cols):
+            self.grid[0][c] = 0
+            self.grid[self.rows - 1][c] = 0
+
+        # --- PLACE MARKERS ---
+        # Start (2) at waypoint 0
+        sx, sy = self.waypoints[0]
+        self.start_pos = (sx, sy)
+        self.grid[sy][sx] = 2
+
+        # Finish (3) at the last waypoint (just before looping back to start)
+        fx, fy = self.waypoints[-1]
+        self.finish_pos = (fx, fy)
+        self.grid[fy][fx] = 3
+
+        # Checkpoints (4) at every other waypoint around the loop
+        # This forces the car to actually drive the full circuit
+        for i in range(2, len(self.waypoints) - 1, 2):
+            cpx, cpy = self.waypoints[i]
+            self.grid[cpy][cpx] = 4
+
+    def _carve_corridor(self, p1, p2, width=4):
+        """Draw a wide road corridor from p1 to p2 using linear interpolation"""
+        x1, y1 = p1
+        x2, y2 = p2
+        steps = max(abs(x2 - x1), abs(y2 - y1))
+        if steps == 0:
+            return
+
+        half = width // 2
+        for i in range(steps + 1):
+            t = i / steps
+            # Current point along the line
+            x = int(x1 + t * (x2 - x1))
+            y = int(y1 + t * (y2 - y1))
+
+            # Inflate to a square of 'width' tiles
+            for dy in range(-half, half + 1):
+                for dx in range(-half, half + 1):
+                    nx, ny = x + dx, y + dy
+                    # Stay inside borders
+                    if 0 < nx < self.cols - 1 and 0 < ny < self.rows - 1:
+                        if self.grid[ny][nx] == 0:  #only carve walls, don't overwrite markers
+                            self.grid[ny][nx] = 1
 
 
 # --- GENETIC ALGORITHM CLASS ---
 
 class GeneticAlgorithm:
     """
-    Evolves a population of Chromosomes (track grids) using:
+    Evolves a population of loop-track Chromosomes using:
     - Tournament selection (pick best from random subset)
-    - Single-point crossover (combine two parents)
-    - Random mutation (flip tiles)
+    - Uniform crossover (mix waypoints from two parents)
+    - Waypoint mutation (shift waypoints to create meanders)
     - Elitism (always keep the best one)
 
-    Fitness is judged by A*: can it solve the track?
+    Fitness is judged by A*: can it complete the full circuit?
     """
-    def __init__(self, population_size=20, generations=35, mutation_rate=0.05):
+    def __init__(self, population_size=20, generations=35, mutation_rate=0.3):
         # Grid dimensions match the game window
         self.cols = s.screen_width // 20  #50
         self.rows = s.screen_height // 20  #40
 
         self.population_size = population_size
         self.generations = generations
-        self.mutation_rate = mutation_rate
+        self.mutation_rate = mutation_rate  #chance of shifting each waypoint
 
         self.population = []
         self.fitness_history = []  #track best fitness per generation (for reports)
@@ -84,52 +146,51 @@ class GeneticAlgorithm:
     # --- POPULATION ---
 
     def init_population(self):
-        """Create initial random population"""
+        """Create initial random population of loop tracks"""
         self.population = []
         for _ in range(self.population_size):
             chrome = Chromosome(self.cols, self.rows)
-            chrome.random_grid()
+            chrome.random_waypoints()
             self.population.append(chrome)
-        print(f"Population initialized: {self.population_size} tracks")
+        print(f"Population initialized: {self.population_size} loop tracks")
 
     # --- FITNESS ---
 
     def calculate_fitness(self, chrome):
         """
-        Score a track by asking A* to solve it.
-        Fitness 0 = unsolvable (dead on arrival).
-        Higher fitness = longer path = more interesting race.
+        LIGHTWEIGHT fitness check: just test start->finish with a single A* call.
+        The full checkpoint pipeline (solve()) is only used once on the winning track.
+        This keeps the GA fast — hundreds of evaluations per run.
         """
-        # Build a physics engine from this chromosome's grid
         engine = PhysicsEngine(chrome.grid)
         solver = AStarSolver(engine)
 
-        # Find start and finish on the grid
         start = chrome.start_pos
         finish = chrome.finish_pos
+        if start is None or finish is None:
+            return 0
 
-        # Check the tiles actually exist
+        # Check the tiles actually exist on the grid
         if chrome.grid[start[1]][start[0]] != 2:
             return 0
         if chrome.grid[finish[1]][finish[0]] != 3:
             return 0
 
-        # Ask A* to find a path
+        # Single A* call: can we get from start to finish?
         start_state = CarState(start[0], start[1], 0, 0)
         finish_coords = [(finish[0], finish[1])]
-
         path, _ = solver.astar_search(start_state, finish_coords)
 
-        if path is None:
-            return 0  #unsolvable = worst fitness
+        if path is None or len(path) < 3:
+            return 0  #unsolvable or trivially short
 
         # --- SCORING ---
-        # Longer paths = more interesting tracks to race on
+        # Longer path = the circuit forces the car to travel further
         path_score = len(path) * 10
 
-        # Small bonus for having more road tiles (more open = more options)
-        road_count = sum(1 for r in chrome.grid for tile in r if tile == 1)
-        road_bonus = road_count * 0.1
+        # Bonus for total road area (more road = wider/longer corridors)
+        road_count = sum(1 for r in chrome.grid for t in r if t >= 1)
+        road_bonus = road_count * 0.3
 
         return path_score + road_bonus
 
@@ -160,39 +221,45 @@ class GeneticAlgorithm:
 
     def crossover(self, parent_a, parent_b):
         """
-        Single-point crossover: take top half from parent A, bottom half from parent B.
-        Then re-stamp start and finish to make sure they survive.
+        Uniform crossover: for each waypoint, randomly pick from parent A or B.
+        Then rebuild the grid from the mixed waypoints.
         """
         child = Chromosome(self.cols, self.rows)
-        child.grid = []
+        child.waypoints = []
 
-        # Split point is a random row
-        split = random.randint(1, self.rows - 2)
-
-        for r in range(self.rows):
-            if r < split:
-                child.grid.append(list(parent_a.grid[r]))  #copy row from A
+        for i in range(parent_a.num_waypoints):
+            # 50/50 chance of inheriting from either parent
+            if random.random() < 0.5:
+                child.waypoints.append(parent_a.waypoints[i])
             else:
-                child.grid.append(list(parent_b.grid[r]))  #copy row from B
+                child.waypoints.append(parent_b.waypoints[i])
 
-        # Re-stamp start and finish (crossover might have overwritten them)
-        child._place_marker(child.start_pos, 2)
-        child._place_marker(child.finish_pos, 3)
-
+        child._build_grid()
         return child
 
     # --- MUTATION ---
 
     def mutate(self, chrome):
-        """Randomly flip tiles (wall<->road). Never touch borders, start, or finish."""
-        for r in range(1, self.rows - 1):
-            for c in range(1, self.cols - 1):
-                if random.random() < self.mutation_rate:
-                    # Don't mutate start or finish
-                    if (c, r) == chrome.start_pos or (c, r) == chrome.finish_pos:
-                        continue
-                    # Flip: wall becomes road, road becomes wall
-                    chrome.grid[r][c] = 1 if chrome.grid[r][c] == 0 else 0
+        """Shift random waypoints by a few tiles to create meanders and variation"""
+        changed = False
+        for i in range(len(chrome.waypoints)):
+            if random.random() < self.mutation_rate:
+                wx, wy = chrome.waypoints[i]
+
+                # Random shift of 1-5 tiles in any direction
+                wx += random.randint(-5, 5)
+                wy += random.randint(-5, 5)
+
+                # Clamp inside grid
+                wx = max(4, min(self.cols - 5, wx))
+                wy = max(4, min(self.rows - 5, wy))
+
+                chrome.waypoints[i] = (wx, wy)
+                changed = True
+
+        # Rebuild the grid if any waypoints moved
+        if changed:
+            chrome._build_grid()
 
     # --- EVOLUTION LOOP ---
 
@@ -209,11 +276,6 @@ class GeneticAlgorithm:
             self.evaluate_population()
             gen_time = time.time() - gen_start
             print(f"  Generation time: {gen_time:.2f}s")
-
-            # Early exit if we found something great
-            if self.population[0].fitness > 500:
-                print("Found a strong track early! Stopping.")
-                break
 
             # --- BUILD NEXT GENERATION ---
             next_gen = []
@@ -242,6 +304,6 @@ class GeneticAlgorithm:
         print(f"Fitness history: {[f'{f:.0f}' for f in self.fitness_history]}")
 
         if best.fitness == 0:
-            print("WARNING: No solvable track found. Try increasing generations or road density.")
+            print("WARNING: No solvable track found. Try increasing generations.")
 
         return best
