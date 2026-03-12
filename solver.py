@@ -47,25 +47,27 @@ class AStarSolver:
 
     def astar_search(self, start_state, target_coords, avoid_tile=None):
         self.set_goals_from_list(target_coords)
-        if not self.current_goals: return None
+        if not self.current_goals: return None, []
 
         queue = PriorityQueue()
         queue.put((0, 0, start_state))
         came_from = {start_state: None}
         cost_so_far = {start_state: 0}
+        explored_states = []  # Track all explored states for debug visualization
 
         while not queue.empty():
             _, _, current = queue.get()
-            
+            explored_states.append(current)  # Add to explored list
+
             #check target
-            if (current.x, current.y) in self.current_goals: 
-                return self._reconstruct_path(came_from, current)
+            if (current.x, current.y) in self.current_goals:
+                return self._reconstruct_path(came_from, current), explored_states
 
             for next_state in self.engine.get_legal_moves(current):
                 #avoidance check (e.g. dont hit finish line yet)
                 if avoid_tile is not None:
                      if self.engine.track[next_state.y][next_state.x] == avoid_tile:
-                         continue 
+                         continue
 
                 new_cost = cost_so_far[current] + 1
                 if next_state not in cost_so_far or new_cost < cost_so_far[next_state]:
@@ -73,7 +75,7 @@ class AStarSolver:
                     priority = new_cost + self.heuristic(next_state)
                     queue.put((priority, 0, next_state))
                     came_from[next_state] = current
-        return None
+        return None, explored_states
 
     def solve(self, start_state):
         print("--- STARTING SOLVER ---")
@@ -83,6 +85,7 @@ class AStarSolver:
         print(f"Found {len(checkpoints)} checkpoint cluster(s)")
 
         full_path = []
+        all_explored = []  # Store all explored states across all searches
         current_start = start_state
 
         checkpoint_num = 0
@@ -100,11 +103,12 @@ class AStarSolver:
 
             print(f"Heading to Checkpoint {checkpoint_num}/{checkpoint_num + len(checkpoints) - 1}...")
             #avoid finish line (3) so we don't shortcut
-            segment = self.astar_search(current_start, best_cluster, avoid_tile=3)
+            segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
+            all_explored.extend(explored)  # Collect explored states
 
             if not segment:
                 print("Error: Path to checkpoint blocked.")
-                return []
+                return [], all_explored
 
             full_path += segment[1:] if full_path else segment
             current_start = segment[-1]
@@ -126,21 +130,23 @@ class AStarSolver:
 
         if not finish_pixels:
             print("WARNING: No finish line found on track!")
-            return full_path
+            return full_path, all_explored
 
         #now allowed to cross finish line
         print(f"Attempting to path from ({current_start.x}, {current_start.y}) with velocity ({current_start.vx}, {current_start.vy})...")
-        final_segment = self.astar_search(current_start, finish_pixels, avoid_tile=None)
+        final_segment, final_explored = self.astar_search(current_start, finish_pixels, avoid_tile=None)
+        all_explored.extend(final_explored)  # Collect final explored states
 
         if not final_segment:
             print("ERROR: Cannot find path to finish line!")
-            return full_path
+            return full_path, all_explored
 
         print(f"SUCCESS! Path to finish found ({len(final_segment)} steps)")
         complete_path = full_path + final_segment[1:]
         print(f"\n=== PATH COMPLETE ===")
         print(f"Total path length: {len(complete_path)} steps")
-        return complete_path
+        print(f"Total states explored: {len(all_explored)}")
+        return complete_path, all_explored
 
     def _reconstruct_path(self, came_from, current):
         """Backtrack from goal to start"""

@@ -90,6 +90,47 @@ class Track:  #rename to match main
 
             self.grid.append(row_data)
 
+    # --- BUILD TRACK FROM GA GRID (no image needed) ---
+
+    @classmethod
+    def from_grid(cls, grid):
+        """
+        Build a Track directly from a 2D grid (from the GA).
+        Skips image loading entirely - renders tiles as coloured rectangles.
+        """
+        track = cls.__new__(cls)  #create instance without calling __init__
+        track.TILE_SIZE = 20
+        track.cols = s.screen_width // track.TILE_SIZE
+        track.rows = s.screen_height // track.TILE_SIZE
+        track.grid = grid
+
+        # Build a pygame surface from the grid
+        track.surface = track._grid_to_surface()
+        print(f"Track built from GA grid. {track.cols}x{track.rows}")
+        return track
+
+    def _grid_to_surface(self):
+        """Convert the grid into a pygame surface for drawing"""
+        surface = pygame.Surface((s.screen_width, s.screen_height))
+
+        # Colour map: grid value -> colour
+        colours = {
+            0: s.black,     #wall
+            1: s.gray,      #road
+            2: s.blue,      #start
+            3: s.green,     #finish
+            4: s.yellow,    #checkpoint
+        }
+
+        for r in range(self.rows):
+            for c in range(self.cols):
+                val = self.grid[r][c]
+                colour = colours.get(val, s.gray)
+                rect = (c * self.TILE_SIZE, r * self.TILE_SIZE, self.TILE_SIZE, self.TILE_SIZE)
+                pygame.draw.rect(surface, colour, rect)
+
+        return surface
+
     def draw(self, screen):
         """Visualise the grid for debugging"""
         # 1. Draw the actual image of the track (walls and road)
