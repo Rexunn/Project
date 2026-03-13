@@ -24,3 +24,31 @@ class CarState:
 
     def __lt__(self, other):
         return False  # don't care which car comes first if scores are equal
+
+
+# --- RACER CLASS ---
+# Wraps a CarState with racing-specific info.
+# CarState stays immutable for A*, Racer handles the game logic.
+
+class Racer:
+    """
+    A car in a race. Wraps CarState and adds:
+    - Color and name (for drawing)
+    - Type (PLAYER, CPU_EASY, CPU_MEDIUM, CPU_HARD)
+    - Checkpoint progress tracking
+    - Race status (finished, crashed)
+    """
+    def __init__(self, state, color, racer_type, name):
+        self.state = state              #current CarState
+        self.color = color
+        self.type = racer_type          # "PLAYER", "CPU_EASY", "CPU_MEDIUM", "CPU_HARD"
+        self.name = name
+
+        # Race progress
+        self.checkpoints_cleared = set()  #indices of checkpoint clusters hit
+        self.finished = False
+        self.crashed = False
+
+        # CPU_HARD pre-computed path
+        self.precomputed_path = []
+        self.path_index = 0

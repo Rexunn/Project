@@ -23,6 +23,18 @@ finish_colour = green
 track_colour = gray
 checkpoint_colour = yellow
 
+# --- RACE SETTINGS ---
+turn_time_limit = 3.0  #seconds for player to pick a move
+cyan = (0, 200, 200)
+
+#racer colours by type
+racer_colours = {
+    "PLAYER": white,
+    "CPU_EASY": red,
+    "CPU_MEDIUM": cyan,
+    "CPU_HARD": yellow,
+}
+
 #GHOST COLOURS
 ghost = (100, 100, 255, 150)  #semi-transparent blue
 ghost_crash = (255, 100, 100, 150)  #semi-transparent red
