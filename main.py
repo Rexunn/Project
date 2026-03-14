@@ -354,12 +354,13 @@ def main():
                             new_x = racer.state.x + new_vx
                             new_y = racer.state.y + new_vy
 
-                            # Validate the move
+                            # Validate the move — hitting a wall = crash
                             if engine._check_path(racer.state.x, racer.state.y, new_x, new_y) and engine._is_safe(new_x, new_y):
                                 new_state = CarState(new_x, new_y, new_vx, new_vy)
                             else:
-                                # Invalid move — stay in place with zero velocity
-                                new_state = CarState(racer.state.x, racer.state.y, 0, 0)
+                                racer.crashed = True
+                                print(f"{racer.name} CRASHED into a wall!")
+                                continue
 
                     elif racer.type == "CPU_EASY":
                         new_state = cpu_easy_move(engine, racer.state)
