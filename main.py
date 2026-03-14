@@ -1,6 +1,7 @@
 import pygame
 import random
 import time
+import math
 import settings as s
 from track import Track
 from game_engine import PhysicsEngine
@@ -30,15 +31,32 @@ def cpu_medium_move(engine, state, target):
         return None
     return min(moves, key=lambda m: abs(m.x - target[0]) + abs(m.y - target[1]))
 
+def sort_checkpoints_by_circuit(clusters, grid):
+    """
+    Sort checkpoint clusters by angle from the grid center.
+    This gives them a natural circuit order (clockwise around the track).
+    """
+    cx = len(grid[0]) // 2  #grid center x
+    cy = len(grid) // 2     #grid center y
+
+    def cluster_angle(cluster):
+        # Average position of all tiles in the cluster
+        avg_x = sum(x for x, y in cluster) / len(cluster)
+        avg_y = sum(y for x, y in cluster) / len(cluster)
+        return math.atan2(avg_y - cy, avg_x - cx)
+
+    return sorted(clusters, key=cluster_angle)
+
 def get_cpu_target(racer, checkpoint_clusters, track):
-    """Figure out what the CPU should be aiming for (next checkpoint or finish)"""
-    # If there are checkpoints we haven't hit yet, aim for nearest one
-    for i, cluster in enumerate(checkpoint_clusters):
-        if i not in racer.checkpoints_cleared:
-            # Return center of cluster
-            avg_x = sum(x for x, y in cluster) // len(cluster)
-            avg_y = sum(y for x, y in cluster) // len(cluster)
-            return (avg_x, avg_y)
+    """Figure out what the CPU should aim for: next sequential checkpoint or finish"""
+    next_cp = len(racer.checkpoints_cleared)  #index of next checkpoint to hit
+
+    # Still have checkpoints to clear (in order)
+    if next_cp < len(checkpoint_clusters):
+        cluster = checkpoint_clusters[next_cp]
+        avg_x = sum(x for x, y in cluster) // len(cluster)
+        avg_y = sum(y for x, y in cluster) // len(cluster)
+        return (avg_x, avg_y)
 
     # All checkpoints cleared — aim for finish
     for r in range(len(track.grid)):
@@ -49,7 +67,7 @@ def get_cpu_target(racer, checkpoint_clusters, track):
     return (racer.state.x, racer.state.y)  #fallback
 
 def check_racer_progress(racer, track, checkpoint_clusters):
-    """Check if a racer hit a checkpoint or the finish line this turn"""
+    """Check if a racer hit the NEXT checkpoint in sequence, or the finish line"""
     x, y = racer.state.x, racer.state.y
 
     # Bounds check
@@ -57,16 +75,16 @@ def check_racer_progress(racer, track, checkpoint_clusters):
         return
 
     tile = track.grid[y][x]
+    next_cp = len(racer.checkpoints_cleared)  #which checkpoint we need next
 
-    # Checkpoint hit?
-    if tile == 4:
-        for i, cluster in enumerate(checkpoint_clusters):
-            if (x, y) in cluster:
-                if i not in racer.checkpoints_cleared:
-                    racer.checkpoints_cleared.add(i)
-                    print(f"{racer.name} cleared checkpoint {i + 1}")
+    # Checkpoint hit? Only counts if it's the NEXT one in sequence
+    if tile == 4 and next_cp < len(checkpoint_clusters):
+        target_cluster = checkpoint_clusters[next_cp]
+        if (x, y) in target_cluster:
+            racer.checkpoints_cleared.add(next_cp)
+            print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)}")
 
-    # Finish line hit? (only counts if all checkpoints cleared)
+    # Finish line hit? (only counts if ALL checkpoints cleared in order)
     if tile == 3:
         if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
             racer.finished = True
@@ -229,6 +247,8 @@ def main():
             # --- CREATE RACERS ---
             solver = AStarSolver(engine)
             checkpoint_clusters = solver._get_clusters(4)
+            checkpoint_clusters = sort_checkpoints_by_circuit(checkpoint_clusters, track.grid)
+            print(f"Checkpoints sorted in circuit order: {len(checkpoint_clusters)} total")
 
             # Player
             player = Racer(start_state, s.racer_colours["PLAYER"], "PLAYER", "You")
@@ -292,10 +312,10 @@ def main():
                 elapsed = time.time() - turn_start_time
                 time_remaining = s.turn_time_limit - elapsed
 
-                # Auto-submit if timer runs out
+                # Timer expired — force car to stay in place (velocity reset to 0)
                 if time_remaining <= 0:
-                    player_ax = 0
-                    player_ay = 0
+                    player_racer = racers[0]
+                    player_racer.state = CarState(player_racer.state.x, player_racer.state.y, 0, 0)
                     race_phase = "EXECUTE"
 
                 # Draw player's legal moves
@@ -321,21 +341,25 @@ def main():
                     new_state = None
 
                     if racer.type == "PLAYER":
-                        # Apply player's chosen acceleration
-                        new_vx = racer.state.vx + player_ax
-                        new_vy = racer.state.vy + player_ay
-                        # Clamp velocity
-                        new_vx = max(-5, min(5, new_vx))
-                        new_vy = max(-5, min(5, new_vy))
-                        new_x = racer.state.x + new_vx
-                        new_y = racer.state.y + new_vy
-
-                        # Validate the move
-                        if engine._check_path(racer.state.x, racer.state.y, new_x, new_y) and engine._is_safe(new_x, new_y):
-                            new_state = CarState(new_x, new_y, new_vx, new_vy)
+                        # If timer forced a stop, state is already updated — just check progress
+                        if racer.state.vx == 0 and racer.state.vy == 0 and player_ax == 0 and player_ay == 0:
+                            new_state = racer.state
                         else:
-                            # Invalid move — stay in place with zero velocity
-                            new_state = CarState(racer.state.x, racer.state.y, 0, 0)
+                            # Apply player's chosen acceleration
+                            new_vx = racer.state.vx + player_ax
+                            new_vy = racer.state.vy + player_ay
+                            # Clamp velocity
+                            new_vx = max(-5, min(5, new_vx))
+                            new_vy = max(-5, min(5, new_vy))
+                            new_x = racer.state.x + new_vx
+                            new_y = racer.state.y + new_vy
+
+                            # Validate the move
+                            if engine._check_path(racer.state.x, racer.state.y, new_x, new_y) and engine._is_safe(new_x, new_y):
+                                new_state = CarState(new_x, new_y, new_vx, new_vy)
+                            else:
+                                # Invalid move — stay in place with zero velocity
+                                new_state = CarState(racer.state.x, racer.state.y, 0, 0)
 
                     elif racer.type == "CPU_EASY":
                         new_state = cpu_easy_move(engine, racer.state)
