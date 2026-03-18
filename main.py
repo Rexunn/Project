@@ -66,7 +66,7 @@ def get_cpu_target(racer, checkpoint_clusters, track):
 
     return (racer.state.x, racer.state.y)  #fallback
 
-def check_racer_progress(racer, track, checkpoint_clusters):
+def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
     """Check if a racer hit the NEXT checkpoint in sequence, or the finish line"""
     x, y = racer.state.x, racer.state.y
 
@@ -88,6 +88,8 @@ def check_racer_progress(racer, track, checkpoint_clusters):
     if tile == 3:
         if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
             racer.finished = True
+            if racer.finish_turn is None:
+                racer.finish_turn = current_turn
             print(f"{racer.name} FINISHED!")
 
 # --- DRAWING HELPERS ---
@@ -145,6 +147,18 @@ def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
         draw_text(screen, f"{racer.name}: {status}", 14, racer.color, x, y)
         y += 20
 
+        if racer.type == "CPU_HARD":
+            path_len = len(racer.precomputed_path)
+            nodes = len(racer.explored_states)
+            solvetime = racer.solvetime
+           
+            draw_text(screen, f"Path: {path_len} steps", 12, s.white, x + 10, y)
+            y += 15
+            draw_text(screen, f"Nodes: {nodes}", 12, s.white, x + 10, y)
+            y += 15
+            draw_text(screen, f"Time: {solvetime:.3f}s", 12, s.white, x + 10, y)
+            y += 15
+
 def draw_racers(screen, racers, track):
     """Draw all racer circles on the track"""
     for racer in racers:
@@ -187,6 +201,7 @@ def main():
     player_ax = 0   #selected acceleration
     player_ay = 0
     turn_start_time = 0
+    race_start_time = 0
     winner = None
 
     running = True
@@ -218,7 +233,7 @@ def main():
                         player_ax = min(2, player_ax + 1)
                     elif event.key == pygame.K_SPACE:
                         race_phase = "EXECUTE"  #confirm move
-
+                
                 # --- GAMEOVER ---
                 elif game_state == "GAMEOVER":
                     if event.key == pygame.K_SPACE:
@@ -264,9 +279,11 @@ def main():
 
             # CPU Hard (pre-compute optimal path)
             cpu_hard = Racer(start_state, s.racer_colours["CPU_HARD"], "CPU_HARD", "CPU Hard")
-            hard_path, _ = solver.solve(start_state)
+            hard_path, all_explored, solvetime = solver.solve(start_state)
             if hard_path:
                 cpu_hard.precomputed_path = hard_path
+                cpu_hard.explored_states = all_explored
+                cpu_hard.solvetime = solvetime
             racers.append(cpu_hard)
 
             print(f"Race ready! {len(racers)} racers, {len(checkpoint_clusters)} checkpoints")
@@ -276,6 +293,7 @@ def main():
             race_phase = "INPUT"
             player_ax = 0
             player_ay = 0
+            race_start_time = time.time()
             turn_start_time = time.time()
             winner = None
             game_state = "RUNNING"
@@ -382,7 +400,7 @@ def main():
                         print(f"{racer.name} CRASHED! No legal moves.")
                     else:
                         racer.state = new_state
-                        check_racer_progress(racer, track, checkpoint_clusters)
+                        check_racer_progress(racer, track, checkpoint_clusters, current_turn)
 
                 # Check for winner
                 for racer in racers:
@@ -400,11 +418,24 @@ def main():
                     player_ax = 0
                     player_ay = 0
                     turn_start_time = time.time()
+                
+                # ==================== DRAWING ====================
+            # 1. Draw CPU Hard's precomputed ghost line
+            for racer in racers:
+                if racer.type == "CPU_HARD" and racer.precomputed_path:
+                    ghost_points = []
+                    for state in racer.precomputed_path:
+                        px = state.x * track.TILE_SIZE + (track.TILE_SIZE // 2)
+                        py = state.y * track.TILE_SIZE + (track.TILE_SIZE // 2)
+                        ghost_points.append((px, py))
+                    
+                    if len(ghost_points) > 1:
+                        pygame.draw.lines(screen, s.yellow, False, ghost_points, 3)
 
-            # Draw all racers
+            # 2. Draw all racers
             draw_racers(screen, racers, track)
 
-            # Leaderboard
+            # 3. Leaderboard
             draw_leaderboard(screen, racers, checkpoint_clusters, current_turn)
 
         # ==================== GAMEOVER ====================

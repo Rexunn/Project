@@ -1,6 +1,7 @@
 from queue import PriorityQueue
 from car import CarState
 import math
+import time
 
 class AStarSolver:
     def __init__(self, engine):
@@ -79,6 +80,7 @@ class AStarSolver:
 
     def solve(self, start_state):
         print("--- STARTING SOLVER ---")
+        start_time = time.time()
 
         #phase 1: hunt yellow checkpoints
         checkpoints = self._get_clusters(4)
@@ -102,7 +104,7 @@ class AStarSolver:
                     best_cluster = cluster
 
             print(f"Heading to Checkpoint {checkpoint_num}/{checkpoint_num + len(checkpoints) - 1}...")
-            #avoid finish line (3) so we don't shortcut
+            #avoid finish line so we don't shortcut
             segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
             all_explored.extend(explored)  # Collect explored states
 
@@ -130,7 +132,7 @@ class AStarSolver:
 
         if not finish_pixels:
             print("WARNING: No finish line found on track!")
-            return full_path, all_explored
+            return full_path, all_explored, 0
 
         #now allowed to cross finish line
         print(f"Attempting to path from ({current_start.x}, {current_start.y}) with velocity ({current_start.vx}, {current_start.vy})...")
@@ -139,14 +141,15 @@ class AStarSolver:
 
         if not final_segment:
             print("ERROR: Cannot find path to finish line!")
-            return full_path, all_explored
+            return full_path, all_explored, 0
 
         print(f"SUCCESS! Path to finish found ({len(final_segment)} steps)")
         complete_path = full_path + final_segment[1:]
         print(f"\n=== PATH COMPLETE ===")
         print(f"Total path length: {len(complete_path)} steps")
         print(f"Total states explored: {len(all_explored)}")
-        return complete_path, all_explored
+        solve_time = time.time() - start_time
+        return complete_path, all_explored, solve_time
 
     def _reconstruct_path(self, came_from, current):
         """Backtrack from goal to start"""

@@ -49,6 +49,11 @@ class Racer:
         self.finished = False
         self.crashed = False
 
+        # Timing
+        self.finish_turn = None  # turn number when racer finished
+
         # CPU_HARD pre-computed path
         self.precomputed_path = []
         self.path_index = 0
+        self.explored_states = []
+        self.solve_time = 0

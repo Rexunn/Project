@@ -33,3 +33,32 @@ CHANGELOG - Racetrack AI Project
 - Fitness rewards path length + direction changes (more turns = better circuit)
 - Removed early exit threshold (loop tracks need full evolution)
 - All 10/10 tracks solvable in testing, total time ~8s
+
+2026-03-13 | Racer Class and Race Settings
+-------------------------------------------
+- Added Racer class to car.py: wraps CarState with color, type, name, checkpoint tracking
+- Racer types: PLAYER, CPU_EASY, CPU_MEDIUM, CPU_HARD
+- Added race settings to settings.py: turn timer (3s), racer colour map
+
+2026-03-13 | Turn-Based Racing with Player + CPU Opponents
+-----------------------------------------------------------
+- Complete rewrite of main.py RUNNING state from path replay to turn-based racing
+- Player controls: arrow keys select acceleration (-2 to +2), SPACE confirms, 3s timer
+- CPU Easy: picks random legal move each turn (no strategy)
+- CPU Medium: greedy move toward nearest uncleared checkpoint (Manhattan distance)
+- CPU Hard: follows pre-computed optimal A* path
+- All 4 racers race simultaneously on the same track
+- Checkpoint tracking per racer: must clear all checkpoints before finish counts
+- Legal move visualization: dots show where each acceleration lands
+- Timer bar, leaderboard, turn counter UI
+- GAMEOVER shows winner name + color, turn count
+- Race ends on: first finish, all crash, or 200 turn limit
+- GENERATING now flows into LOADING to set up racers automatically
+
+2026-03-18 | AI Visibility: Stats HUD and Pre-computed Ghost Line
+------------------------------------------------------------------
+- Updated solver.py: solve() now times its execution and returns total solve time alongside the path and explored states.
+- Updated car.py: Racer class now stores explored_states and solvetime.
+- Added live AI stats to the HUD in main.py: dynamically displays path length, nodes explored, and calculation time for the CPU Hard racer.
+- Implemented visual "ghost line" rendering in main.py using pygame.draw.lines to show the AI's pre-computed optimal route.
+- Restructured drawing logic in the RUNNING state to guarantee the track, ghost line, racers, and leaderboard render cleanly every frame outside of the event loop.
