@@ -112,14 +112,26 @@ class Track:  #rename to match main
     def _grid_to_surface(self):
         """Convert the grid into a pygame surface for drawing"""
         surface = pygame.Surface((s.screen_width, s.screen_height))
+        import random
+
+        # Define some visual themes for the walls and road
+        themes = [
+            {0: s.black, 1: s.gray},                         # Classic Tarmac
+            {0: (30, 60, 30), 1: (120, 90, 60)},             # Forest Dirt Track
+            {0: (10, 10, 40), 1: (50, 200, 200)},            # Cyberpunk Neon
+            {0: (200, 200, 220), 1: (240, 240, 255)}         # Snow/Ice
+        ]
+        
+        # Pick a random theme for this specific map
+        current_theme = random.choice(themes)
 
         # Colour map: grid value -> colour
         colours = {
-            0: s.black,     #wall
-            1: s.gray,      #road
-            2: s.blue,      #start
-            3: s.green,     #finish
-            4: s.yellow,    #checkpoint
+            0: current_theme[0], # wall color from theme
+            1: current_theme[1], # road color from theme
+            2: s.blue,           # start
+            3: s.green,          # finish
+            4: s.yellow,         # checkpoint
         }
 
         for r in range(self.rows):

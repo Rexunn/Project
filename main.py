@@ -158,6 +158,12 @@ def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
             y += 15
             draw_text(screen, f"Time: {solvetime:.3f}s", 12, s.white, x + 10, y)
             y += 15
+            draw_text(screen, "--- CONTROLS ---", 14, s.yellow, x, y)
+            y += 15
+            draw_text(screen, "Arrows: Aim", 12, s.white, x, y)
+            y += 15
+            draw_text(screen, "Space: Confirm Move", 12, s.white, x, y)
+            y += 15
 
 def draw_racers(screen, racers, track):
     """Draw all racer circles on the track"""
@@ -421,16 +427,15 @@ def main():
                 
                 # ==================== DRAWING ====================
             # 1. Draw CPU Hard's precomputed ghost line
+            # --- DRAWING FOR RUNNING STATE ---
+            # 1. Draw CPU Hard's precomputed ghost path as dots
             for racer in racers:
                 if racer.type == "CPU_HARD" and racer.precomputed_path:
-                    ghost_points = []
                     for state in racer.precomputed_path:
                         px = state.x * track.TILE_SIZE + (track.TILE_SIZE // 2)
                         py = state.y * track.TILE_SIZE + (track.TILE_SIZE // 2)
-                        ghost_points.append((px, py))
-                    
-                    if len(ghost_points) > 1:
-                        pygame.draw.lines(screen, s.yellow, False, ghost_points, 3)
+                        # 3-pixel radius dot for each step
+                        pygame.draw.circle(screen, s.cyan, (px, py), 3)
 
             # 2. Draw all racers
             draw_racers(screen, racers, track)

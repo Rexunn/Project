@@ -24,7 +24,7 @@ track_colour = gray
 checkpoint_colour = yellow
 
 # --- RACE SETTINGS ---
-turn_time_limit = 3.0  #seconds for player to pick a move
+turn_time_limit = 5.0  #seconds for player to pick a move
 cyan = (0, 200, 200)
 
 #racer colours by type
