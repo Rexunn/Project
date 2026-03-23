@@ -19,6 +19,8 @@ class AStarSolver:
         for (gx, gy) in self.current_goals:
             dist = abs(state.x - gx) + abs(state.y - gy)
             if dist < min_dist: min_dist = dist
+                # divide by 3.0 because the car's max speed cap is 5. 
+               # Keeping this divisor ensures the heuristic remains "admissible"
         return min_dist / 3.0 
 
     def _get_clusters(self, tile_value):
@@ -78,7 +80,39 @@ class AStarSolver:
                     came_from[next_state] = current
         return None, explored_states
 
-    def solve(self, start_state):
+    def bfs_search(self, start_state, target_coords, avoid_tile=None):
+        self.set_goals_from_list(target_coords)
+        if not self.current_goals: return None, []
+
+        queue = PriorityQueue()
+        queue.put((0, 0, start_state))
+        came_from = {start_state: None}
+        cost_so_far = {start_state: 0}
+        explored_states = []  # Track all explored states for debug visualization
+
+        while not queue.empty():
+            _, _, current = queue.get()
+            explored_states.append(current)  # Add to explored list
+
+            #check target
+            if (current.x, current.y) in self.current_goals:
+                return self._reconstruct_path(came_from, current), explored_states
+
+            for next_state in self.engine.get_legal_moves(current):
+                #avoidance check (e.g. dont hit finish line yet)
+                if avoid_tile is not None:
+                     if self.engine.track[next_state.y][next_state.x] == avoid_tile:
+                         continue
+
+                new_cost = cost_so_far[current] + 1
+                if next_state not in cost_so_far or new_cost < cost_so_far[next_state]:
+                    cost_so_far[next_state] = new_cost
+                    priority = new_cost
+                    queue.put((priority, 0, next_state))
+                    came_from[next_state] = current
+        return None, explored_states    
+
+    def solve(self, start_state, use_bfs=False):
         print("--- STARTING SOLVER ---")
         start_time = time.time()
 
@@ -105,12 +139,16 @@ class AStarSolver:
 
             print(f"Heading to Checkpoint {checkpoint_num}/{checkpoint_num + len(checkpoints) - 1}...")
             #avoid finish line so we don't shortcut
-            segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
+            if use_bfs:
+                segment, explored = self.bfs_search(current_start, best_cluster, avoid_tile=3)
+            else:
+                segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
+
             all_explored.extend(explored)  # Collect explored states
 
             if not segment:
                 print("Error: Path to checkpoint blocked.")
-                return [], all_explored
+                return [], all_explored, 0
 
             full_path += segment[1:] if full_path else segment
             current_start = segment[-1]
@@ -136,7 +174,10 @@ class AStarSolver:
 
         #now allowed to cross finish line
         print(f"Attempting to path from ({current_start.x}, {current_start.y}) with velocity ({current_start.vx}, {current_start.vy})...")
-        final_segment, final_explored = self.astar_search(current_start, finish_pixels, avoid_tile=None)
+        if use_bfs:
+            final_segment, final_explored = self.bfs_search(current_start, finish_pixels, avoid_tile=None)
+        else:
+            final_segment, final_explored = self.astar_search(current_start, finish_pixels, avoid_tile=None)
         all_explored.extend(final_explored)  # Collect final explored states
 
         if not final_segment:

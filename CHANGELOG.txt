@@ -62,3 +62,13 @@ CHANGELOG - Racetrack AI Project
 - Added live AI stats to the HUD in main.py: dynamically displays path length, nodes explored, and calculation time for the CPU Hard racer.
 - Implemented visual "ghost line" rendering in main.py using pygame.draw.lines to show the AI's pre-computed optimal route.
 - Restructured drawing logic in the RUNNING state to guarantee the track, ghost line, racers, and leaderboard render cleanly every frame outside of the event loop.
+
+2026-03-23 | Algorithm Comparison and Pre-Race Stats Screen
+------------------------------------------------------------
+- Added bfs_search() to solver.py as an uninformed search baseline by duplicating A* and removing the distance heuristic.
+- Added academic justification comment to the heuristic divisor in solver.py to prove admissibility based on the engine's velocity cap.
+- Updated the solve() method to accept a use_bfs parameter, allowing seamless toggling between A* and Breadth-First Search.
+- Fixed an edge-case bug in solve() where unreachable checkpoints caused a tuple unpacking crash by ensuring failed searches return a 0 solve time.
+- Implemented a new "READY" game state in main.py that runs a silent BFS comparison after track generation.
+- Added a pre-race UI overlay to display a side-by-side comparison of A* vs. BFS performance (solve time and nodes explored).
+- Updated the main event loop to pause on the READY screen until the player presses SPACE to begin the race.

@@ -227,6 +227,13 @@ def main():
                     elif event.key == pygame.K_n:
                         game_state = "GENERATING"
 
+                # --- READY ---
+                elif game_state == "READY":
+                    if event.key == pygame.K_SPACE:
+                        turn_start_time = time.time() # Reset the 5s timer right as we start
+                        race_start_time = time.time()
+                        game_state = "RUNNING"
+
                 # --- RUNNING (player input) ---
                 elif game_state == "RUNNING" and race_phase == "INPUT":
                     if event.key == pygame.K_UP:
@@ -292,17 +299,30 @@ def main():
                 cpu_hard.solvetime = solvetime
             racers.append(cpu_hard)
 
+            # --- NEW: RUN BFS FOR COMPARISON ---
+            print("Running BFS for comparison...")
+            _, bfs_explored, bfs_time = solver.solve(start_state, use_bfs=True)
+            
+         # Save stats globally for the READY screen
+            global race_stats 
+            race_stats = {
+                "astar_time": solvetime,
+                "astar_nodes": len(all_explored),
+                "bfs_time": bfs_time,
+                "bfs_nodes": len(bfs_explored)
+            }
+
             print(f"Race ready! {len(racers)} racers, {len(checkpoint_clusters)} checkpoints")
 
-            # Reset race state
+            # Reset race state variables 
             current_turn = 0
             race_phase = "INPUT"
             player_ax = 0
             player_ay = 0
-            race_start_time = time.time()
-            turn_start_time = time.time()
             winner = None
-            game_state = "RUNNING"
+            
+            # Switch to comparison screen!
+            game_state = "READY"
 
         # ==================== GENERATING ====================
         elif game_state == "GENERATING":
@@ -326,6 +346,24 @@ def main():
 
                 # Go to LOADING to set up the race
                 game_state = "LOADING"
+
+        # ==================== READY ====================
+        elif game_state == "READY":
+            # Draw a dark overlay over the track
+            overlay = pygame.Surface((s.screen_width, s.screen_height))
+            overlay.set_alpha(200)
+            overlay.fill((0, 0, 0))
+            screen.blit(overlay, (0, 0))
+
+            draw_text(screen, "ALGORITHM COMPARISON", 40, s.yellow, s.screen_width // 2, s.screen_height // 2 - 80)
+            
+            # A* Stats
+            draw_text(screen, f"A* Search: {race_stats['astar_time']:.3f}s  |  {race_stats['astar_nodes']} nodes explored", 24, s.green, s.screen_width // 2, s.screen_height // 2 - 20)
+            
+            # BFS Stats
+            draw_text(screen, f"Breadth-First Search: {race_stats['bfs_time']:.3f}s  |  {race_stats['bfs_nodes']} nodes explored", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 20)
+            
+            draw_text(screen, "Press SPACE to start the race", 20, s.white, s.screen_width // 2, s.screen_height // 2 + 100)
 
         # ==================== RUNNING ====================
         elif game_state == "RUNNING":
