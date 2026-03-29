@@ -59,17 +59,35 @@ class Chromosome:
         return self
 
     def _build_grid(self):
-        """Convert waypoints into a full grid by carving corridors between them"""
-        # Start with all walls
+        """Convert waypoints into a full grid using Catmull-Rom Splines for smooth curves"""
         self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+        num = len(self.waypoints)
 
-        # Carve corridors between consecutive waypoints (loop back to first)
-        for i in range(len(self.waypoints)):
+        # 1. Carve smooth roads connecting the waypoints
+        for i in range(num):
+            # We need 4 points to calculate a spline curve
+            p0 = self.waypoints[(i - 1) % num]
             p1 = self.waypoints[i]
-            p2 = self.waypoints[(i + 1) % len(self.waypoints)]
-            self._carve_corridor(p1, p2, width=4)
+            p2 = self.waypoints[(i + 1) % num]
+            p3 = self.waypoints[(i + 2) % num]
 
-        # Border walls (ensure the track is fully enclosed)
+            # Estimate how many brush strokes we need based on distance
+            dist = max(abs(p2[0] - p1[0]), abs(p2[1] - p1[1]))
+            steps = max(10, dist * 3)  # Dense sampling so the brush strokes overlap
+
+            for step in range(steps + 1):
+                t = step / steps
+                # Apply the Catmull-Rom polynomial math
+                t2 = t * t
+                t3 = t2 * t
+                
+                x = 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3)
+                y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
+                
+                # Carve the road (radius 2 = 5 tiles wide) using the brush from Commit 1
+                self._carve_circle(int(x), int(y), radius=2)
+
+        # 2. Border walls (ensure the track is fully enclosed)
         for r in range(self.rows):
             self.grid[r][0] = 0
             self.grid[r][self.cols - 1] = 0
@@ -78,18 +96,15 @@ class Chromosome:
             self.grid[self.rows - 1][c] = 0
 
         # --- PLACE MARKERS ---
-        # Start (2) at waypoint 0
         sx, sy = self.waypoints[0]
         self.start_pos = (sx, sy)
         self.grid[sy][sx] = 2
 
-        # Finish (3) at the last waypoint (just before looping back to start)
         fx, fy = self.waypoints[-1]
         self.finish_pos = (fx, fy)
         self.grid[fy][fx] = 3
 
-        # Checkpoints (4) at every other waypoint around the loop
-        # This forces the car to actually drive the full circuit
+        # Place checkpoints at alternating waypoints
         for i in range(2, len(self.waypoints) - 1, 2):
             cpx, cpy = self.waypoints[i]
             self.grid[cpy][cpx] = 4
@@ -105,17 +120,22 @@ class Chromosome:
         half = width // 2
         for i in range(steps + 1):
             t = i / steps
-            # Current point along the line
             x = int(x1 + t * (x2 - x1))
             y = int(y1 + t * (y2 - y1))
 
-            # Inflate to a square of 'width' tiles
-            for dy in range(-half, half + 1):
-                for dx in range(-half, half + 1):
-                    nx, ny = x + dx, y + dy
+            # --- NEW: Use the circular brush instead of the square one ---
+            self._carve_circle(x, y, radius=half)
+
+    def _carve_circle(self, cx, cy, radius):
+        """Uses a circular brush to paint the road, eliminating blocky corners"""
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                # Standard circle formula: x^2 + y^2 <= r^2
+                if dx*dx + dy*dy <= radius*radius + 1: # +1 softens the edge slightly
+                    nx, ny = cx + dx, cy + dy
                     # Stay inside borders
                     if 0 < nx < self.cols - 1 and 0 < ny < self.rows - 1:
-                        if self.grid[ny][nx] == 0:  #only carve walls, don't overwrite markers
+                        if self.grid[ny][nx] == 0:  # Only overwrite walls
                             self.grid[ny][nx] = 1
 
 
@@ -263,7 +283,7 @@ class GeneticAlgorithm:
 
     # --- EVOLUTION LOOP ---
 
-    def run(self):
+    def run(self, update_callback=None):
         """Main GA loop. Returns the best chromosome found."""
         print("\n=== GENETIC ALGORITHM STARTING ===")
         self.init_population()
@@ -274,6 +294,11 @@ class GeneticAlgorithm:
             gen_start = time.time()
             print(f"\nGeneration {gen + 1}/{self.generations}")
             self.evaluate_population()
+
+            # Trigger live graph drawing
+            if update_callback:
+                update_callback(gen + 1, self.generations, self.fitness_history)
+
             gen_time = time.time() - gen_start
             print(f"  Generation time: {gen_time:.2f}s")
 

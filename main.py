@@ -150,7 +150,7 @@ def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
         if racer.type == "CPU_HARD":
             path_len = len(racer.precomputed_path)
             nodes = len(racer.explored_states)
-            solvetime = racer.solvetime
+            solvetime = racer.solve_time
            
             draw_text(screen, f"Path: {path_len} steps", 12, s.white, x + 10, y)
             y += 15
@@ -296,7 +296,7 @@ def main():
             if hard_path:
                 cpu_hard.precomputed_path = hard_path
                 cpu_hard.explored_states = all_explored
-                cpu_hard.solvetime = solvetime
+                cpu_hard.solve_time = solvetime
             racers.append(cpu_hard)
 
             # --- NEW: RUN BFS FOR COMPARISON ---
@@ -326,11 +326,45 @@ def main():
 
         # ==================== GENERATING ====================
         elif game_state == "GENERATING":
-            draw_text(screen, "Generating Track with GA...", 40, s.yellow, s.screen_width // 2, s.screen_height // 2)
-            pygame.display.flip()
+            
+            # This function is passed to the GA and called every generation
+            def draw_ga_progress(current_gen, max_gens, history):
+                pygame.event.pump() # Keeps the OS from thinking the game has frozen
 
+                screen.fill(s.gray)
+                draw_text(screen, "Evolving Track Layout...", 40, s.yellow, s.screen_width // 2, 100)
+                draw_text(screen, f"Generation: {current_gen} / {max_gens}", 30, s.white, s.screen_width // 2, 160)
+
+                # --- DRAW THE LINE GRAPH ---
+                if history:
+                    # Dimensions of the graph box
+                    gx, gy = 200, 600  # Bottom-left corner of the graph
+                    gw, gh = 600, 300  # Width and Height
+                    
+                    # Graph Background
+                    pygame.draw.rect(screen, s.black, (gx, gy - gh, gw, gh))
+                    
+                    # Calculate points based on fitness scores
+                    max_fit = max(max(history), 1)
+                    points = []
+                    for i, fit in enumerate(history):
+                        # X position spreads across the width based on generation count
+                        px = gx + int((i / max(1, len(history) - 1)) * gw)
+                        # Y position scales up based on max fitness
+                        py = gy - int((fit / max_fit) * gh)
+                        points.append((px, py))
+
+                    # Draw the lines and data points
+                    if len(points) > 1:
+                        pygame.draw.lines(screen, s.green, False, points, 3)
+                        for p in points:
+                            pygame.draw.circle(screen, s.cyan, p, 5)
+
+                pygame.display.flip()
+
+            # Run the GA and pass in our drawing function
             ga = GeneticAlgorithm(population_size=20, generations=35, mutation_rate=0.3)
-            best = ga.run()
+            best = ga.run(update_callback=draw_ga_progress)
 
             if best.fitness == 0:
                 print("GA failed. Returning to menu.")
@@ -346,7 +380,7 @@ def main():
 
                 # Go to LOADING to set up the race
                 game_state = "LOADING"
-
+        
         # ==================== READY ====================
         elif game_state == "READY":
             # Draw a dark overlay over the track
