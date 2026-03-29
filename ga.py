@@ -204,15 +204,26 @@ class GeneticAlgorithm:
         if path is None or len(path) < 3:
             return 0  #unsolvable or trivially short
 
-        # --- SCORING ---
-        # Longer path = the circuit forces the car to travel further
+       # --- SCORING ---
+        # 1. Base Score: Longer path = the circuit forces the car to travel further
         path_score = len(path) * 10
 
-        # Bonus for total road area (more road = wider/longer corridors)
+        # 2. Complexity Bonus: Count how many times the car changes direction/speed
+        direction_changes = 0
+        for i in range(1, len(path)):
+            prev_state = path[i - 1]
+            curr_state = path[i]
+            # If the velocity vector changes, the AI had to steer, brake, or accelerate
+            if prev_state.vx != curr_state.vx or prev_state.vy != curr_state.vy:
+                direction_changes += 1
+        
+        complexity_bonus = direction_changes * 15  # High reward for twisty tracks
+
+        # 3. Size Bonus: Total road area (more road = wider/longer corridors)
         road_count = sum(1 for r in chrome.grid for t in r if t >= 1)
         road_bonus = road_count * 0.3
 
-        return path_score + road_bonus
+        return path_score + complexity_bonus + road_bonus
 
     def evaluate_population(self):
         """Score every chromosome in the population"""
