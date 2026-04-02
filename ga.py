@@ -14,80 +14,63 @@ import settings as s
 class Chromosome:
     """
     Represents a racing circuit as a loop of waypoints.
-    The grid is built by carving wide corridors between consecutive waypoints,
-    then looping the last waypoint back to the first = closed circuit.
-
+    The grid is built using Catmull-Rom splines for organic curves.
     Grid values: 0=wall, 1=road, 2=start, 3=finish, 4=checkpoint
     """
     def __init__(self, cols, rows, num_waypoints=8):
         self.cols = cols
         self.rows = rows
         self.num_waypoints = num_waypoints
-        self.waypoints = []  #list of (x, y) positions defining the loop
+        self.waypoints = []  
         self.grid = []
         self.fitness = 0
         self.start_pos = None
         self.finish_pos = None
 
     def random_waypoints(self):
-        """
-        Place waypoints in a rough circle around the center of the grid.
-        Each waypoint gets a random offset so no two tracks look the same.
-        """
-        cx = self.cols // 2   #center x
-        cy = self.rows // 2   #center y
-        # Radius leaves room for border walls and corridor width
+        cx = self.cols // 2   
+        cy = self.rows // 2   
         radius_x = cx - 6
         radius_y = cy - 6
 
         self.waypoints = []
         for i in range(self.num_waypoints):
-            # Evenly spaced angles around the circle
             angle = (2 * math.pi * i) / self.num_waypoints
-
-            # Base position on the circle + random jitter for variety
             wx = int(cx + radius_x * math.cos(angle)) + random.randint(-4, 4)
             wy = int(cy + radius_y * math.sin(angle)) + random.randint(-4, 4)
-
-            # Clamp inside the grid (leave room for borders + corridor width)
             wx = max(4, min(self.cols - 5, wx))
             wy = max(4, min(self.rows - 5, wy))
-
             self.waypoints.append((wx, wy))
 
         self._build_grid()
         return self
 
     def _build_grid(self):
-        """Convert waypoints into a full grid using Catmull-Rom Splines for smooth curves"""
+        """Convert waypoints into a full grid using Catmull-Rom Splines"""
         self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
         num = len(self.waypoints)
 
         # 1. Carve smooth roads connecting the waypoints
         for i in range(num):
-            # We need 4 points to calculate a spline curve
             p0 = self.waypoints[(i - 1) % num]
             p1 = self.waypoints[i]
             p2 = self.waypoints[(i + 1) % num]
             p3 = self.waypoints[(i + 2) % num]
 
-            # Estimate how many brush strokes we need based on distance
             dist = max(abs(p2[0] - p1[0]), abs(p2[1] - p1[1]))
-            steps = max(10, dist * 3)  # Dense sampling so the brush strokes overlap
+            steps = max(10, dist * 3)  
 
             for step in range(steps + 1):
                 t = step / steps
-                # Apply the Catmull-Rom polynomial math
                 t2 = t * t
                 t3 = t2 * t
                 
                 x = 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3)
                 y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
                 
-                # Carve the road (radius 2 = 5 tiles wide) using the brush from Commit 1
                 self._carve_circle(int(x), int(y), radius=2)
 
-        # 2. Border walls (ensure the track is fully enclosed)
+        # 2. Border walls 
         for r in range(self.rows):
             self.grid[r][0] = 0
             self.grid[r][self.cols - 1] = 0
@@ -104,40 +87,43 @@ class Chromosome:
         self.finish_pos = (fx, fy)
         self.grid[fy][fx] = 3
 
-        # Place checkpoints at alternating waypoints
+        # Place checkpoints as lines across the track
         for i in range(2, len(self.waypoints) - 1, 2):
-            cpx, cpy = self.waypoints[i]
-            self.grid[cpy][cpx] = 4
-
-    def _carve_corridor(self, p1, p2, width=4):
-        """Draw a wide road corridor from p1 to p2 using linear interpolation"""
-        x1, y1 = p1
-        x2, y2 = p2
-        steps = max(abs(x2 - x1), abs(y2 - y1))
-        if steps == 0:
-            return
-
-        half = width // 2
-        for i in range(steps + 1):
-            t = i / steps
-            x = int(x1 + t * (x2 - x1))
-            y = int(y1 + t * (y2 - y1))
-
-            # --- NEW: Use the circular brush instead of the square one ---
-            self._carve_circle(x, y, radius=half)
+            self._draw_checkpoint_line(i)
 
     def _carve_circle(self, cx, cy, radius):
-        """Uses a circular brush to paint the road, eliminating blocky corners"""
+        """Uses a circular brush to paint the road"""
         for dy in range(-radius, radius + 1):
             for dx in range(-radius, radius + 1):
-                # Standard circle formula: x^2 + y^2 <= r^2
-                if dx*dx + dy*dy <= radius*radius + 1: # +1 softens the edge slightly
+                if dx*dx + dy*dy <= radius*radius + 1: 
                     nx, ny = cx + dx, cy + dy
-                    # Stay inside borders
                     if 0 < nx < self.cols - 1 and 0 < ny < self.rows - 1:
-                        if self.grid[ny][nx] == 0:  # Only overwrite walls
+                        if self.grid[ny][nx] == 0:  
                             self.grid[ny][nx] = 1
 
+    def _draw_checkpoint_line(self, index):
+        """Draws a thin line perpendicular to the track flow until it hits a wall"""
+        import math
+        p_prev = self.waypoints[(index - 1) % len(self.waypoints)]
+        p_next = self.waypoints[(index + 1) % len(self.waypoints)]
+        curr = self.waypoints[index]
+
+        dx = p_next[0] - p_prev[0]
+        dy = p_next[1] - p_prev[1]
+
+        length = max(0.0001, math.hypot(dx, dy))
+        nx, ny = -dy / length, dx / length
+
+        for direction in [1, -1]:
+            for step in range(10): 
+                cx = int(curr[0] + nx * step * direction)
+                cy = int(curr[1] + ny * step * direction)
+                
+                if 0 < cx < self.cols - 1 and 0 < cy < self.rows - 1:
+                    if self.grid[cy][cx] == 1:  
+                        self.grid[cy][cx] = 4
+                    elif self.grid[cy][cx] == 0:
+                        break
 
 # --- GENETIC ALGORITHM CLASS ---
 
@@ -217,7 +203,7 @@ class GeneticAlgorithm:
             if prev_state.vx != curr_state.vx or prev_state.vy != curr_state.vy:
                 direction_changes += 1
         
-        complexity_bonus = direction_changes * 15  # High reward for twisty tracks
+        complexity_bonus = direction_changes * 2  # High reward for twisty tracks
 
         # 3. Size Bonus: Total road area (more road = wider/longer corridors)
         road_count = sum(1 for r in chrome.grid for t in r if t >= 1)

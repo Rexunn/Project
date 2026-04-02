@@ -132,8 +132,24 @@ def draw_timer_bar(screen, time_remaining, max_time):
     # Label
     draw_text(screen, f"{time_remaining:.1f}s", 16, s.white, s.screen_width // 2, bar_y + bar_height + 12)
 
+def draw_velocity_hud(screen, state):
+    """Draws a dynamic speed gauge on the HUD"""
+    speed = max(abs(state.vx), abs(state.vy))
+    
+    hx, hy = s.screen_width // 2 - 35, 45
+    draw_text(screen, "SPEED:", 14, s.white, hx - 30, hy)
+    
+    for i in range(1, 6):
+        color = s.gray 
+        if i <= speed:
+            if i <= 2: color = s.green       
+            elif i <= 4: color = s.yellow    
+            else: color = s.red              
+            
+        pygame.draw.rect(screen, color, (hx + (i-1)*15, hy - 8, 10, 16))
+
 def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
-    """Draw race progress in the top-right corner"""
+    """Draw race progress in the top-right corner, dynamically sorted by position"""
     total_cp = len(checkpoint_clusters)
     x = s.screen_width - 180
     y = 10
@@ -141,10 +157,31 @@ def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
     draw_text(screen, f"Turn: {current_turn}", 16, s.white, x, y)
     y += 25
 
-    for racer in racers:
+    # Dynamic sorting logic
+    def get_racer_score(r):
+        if r.crashed: return (-1, 0, 0)
+        if r.finished: return (100, -r.finish_turn, 0)
+        
+        cp_count = len(r.checkpoints_cleared)
+        dist_to_next = float('inf')
+        
+        if cp_count < total_cp:
+            target_cluster = checkpoint_clusters[cp_count]
+            if target_cluster: # Safety check
+                cx = sum(tx for tx, ty in target_cluster) / len(target_cluster)
+                cy = sum(ty for tx, ty in target_cluster) / len(target_cluster)
+                dist_to_next = abs(r.state.x - cx) + abs(r.state.y - cy)
+            
+        return (1, cp_count, -dist_to_next) 
+
+    sorted_racers = sorted(racers, key=get_racer_score, reverse=True)
+
+    placements = ["1st", "2nd", "3rd", "4th"]
+    for i, racer in enumerate(sorted_racers):
         cp_count = len(racer.checkpoints_cleared)
         status = "FINISHED" if racer.finished else ("CRASHED" if racer.crashed else f"{cp_count}/{total_cp} CP")
-        draw_text(screen, f"{racer.name}: {status}", 14, racer.color, x, y)
+        
+        draw_text(screen, f"{placements[i]} - {racer.name}: {status}", 14, racer.color, x, y)
         y += 20
 
         if racer.type == "CPU_HARD":
@@ -158,12 +195,13 @@ def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
             y += 15
             draw_text(screen, f"Time: {solvetime:.3f}s", 12, s.white, x + 10, y)
             y += 15
-            draw_text(screen, "--- CONTROLS ---", 14, s.yellow, x, y)
-            y += 15
-            draw_text(screen, "Arrows: Aim", 12, s.white, x, y)
-            y += 15
-            draw_text(screen, "Space: Confirm Move", 12, s.white, x, y)
-            y += 15
+
+    y += 15
+    draw_text(screen, "--- CONTROLS ---", 14, s.yellow, x, y)
+    y += 15
+    draw_text(screen, "Arrows: Aim", 12, s.white, x, y)
+    y += 15
+    draw_text(screen, "Space: Confirm Move", 12, s.white, x, y)
 
 def draw_racers(screen, racers, track):
     """Draw all racer circles on the track"""
@@ -299,7 +337,7 @@ def main():
                 cpu_hard.solve_time = solvetime
             racers.append(cpu_hard)
 
-            # --- NEW: RUN BFS FOR COMPARISON ---
+            # --- RUN BFS FOR COMPARISON ---
             print("Running BFS for comparison...")
             _, bfs_explored, bfs_time = solver.solve(start_state, use_bfs=True)
             
@@ -420,10 +458,12 @@ def main():
                     legal_moves = engine.get_legal_moves(player_racer.state)
                     draw_legal_moves(screen, legal_moves, player_ax, player_ay, player_racer.state, track)
                     draw_timer_bar(screen, max(0, time_remaining), s.turn_time_limit)
+                    
+                    # --- DRAW VELOCITY GAUGE ---
+                    draw_velocity_hud(screen, player_racer.state)
 
                     # Show selected acceleration
                     draw_text(screen, f"Accel: ({player_ax}, {player_ay})", 18, s.white, s.screen_width // 2, s.screen_height - 30)
-                    draw_text(screen, "Arrow Keys to aim, SPACE to confirm", 14, (200, 200, 200), s.screen_width // 2, s.screen_height - 10)
                 else:
                     # Player already finished/crashed, skip to execute
                     race_phase = "EXECUTE"
@@ -497,17 +537,43 @@ def main():
                     player_ay = 0
                     turn_start_time = time.time()
                 
-                # ==================== DRAWING ====================
-            # 1. Draw CPU Hard's precomputed ghost line
-            # --- DRAWING FOR RUNNING STATE ---
+          # ==================== DRAWING ====================
             # 1. Draw CPU Hard's precomputed ghost path as dots
             for racer in racers:
                 if racer.type == "CPU_HARD" and racer.precomputed_path:
                     for state in racer.precomputed_path:
                         px = state.x * track.TILE_SIZE + (track.TILE_SIZE // 2)
                         py = state.y * track.TILE_SIZE + (track.TILE_SIZE // 2)
-                        # 3-pixel radius dot for each step
                         pygame.draw.circle(screen, s.cyan, (px, py), 3)
+
+            # --- HIGHLIGHT ACTIVE CHECKPOINT ---
+            player_racer = racers[0]
+            next_cp_idx = len(player_racer.checkpoints_cleared)
+            
+            if next_cp_idx < len(checkpoint_clusters):
+                active_cluster = checkpoint_clusters[next_cp_idx]
+                if active_cluster: # Safety check
+                    pulse = (math.sin(time.time() * 5) + 1) / 2  
+                    alpha = int(80 + 100 * pulse)  
+                    
+                    glow_surface = pygame.Surface((track.TILE_SIZE, track.TILE_SIZE), pygame.SRCALPHA)
+                    glow_surface.fill((255, 165, 0, alpha)) 
+                    
+                    for (cx, cy) in active_cluster:
+                        px = cx * track.TILE_SIZE
+                        py = cy * track.TILE_SIZE
+                        screen.blit(glow_surface, (px, py))
+
+            # --- DRAW CHECKPOINT NUMBERS ---
+            for i, cluster in enumerate(checkpoint_clusters):
+                if cluster: # Safety check
+                    cx = sum(x for x, y in cluster) // len(cluster)
+                    cy = sum(y for x, y in cluster) // len(cluster)
+                    px = cx * track.TILE_SIZE + (track.TILE_SIZE // 2)
+                    py = cy * track.TILE_SIZE + (track.TILE_SIZE // 2)
+                    
+                    pygame.draw.circle(screen, s.black, (px, py), 10)
+                    draw_text(screen, str(i + 1), 14, s.white, px, py)
 
             # 2. Draw all racers
             draw_racers(screen, racers, track)

@@ -39,7 +39,7 @@ class AStarSolver:
             all_pixels.remove(start_node)
             while queue:
                 cx, cy = queue.pop(0)
-                for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+                for dx, dy in [(-1,0), (1,0), (0,-1), (0,1), (-1,-1), (-1,1), (1,-1), (1,1)]:
                     nx, ny = cx + dx, cy + dy
                     if (nx, ny) in all_pixels:
                         all_pixels.remove((nx, ny))
