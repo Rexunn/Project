@@ -448,8 +448,8 @@ def main():
 
                 # Timer expired — force car to stay in place (velocity reset to 0)
                 if time_remaining <= 0:
-                    player_racer = racers[0]
-                    player_racer.state = CarState(player_racer.state.x, player_racer.state.y, 0, 0)
+                    player_ax = 0
+                    player_ay = 0
                     race_phase = "EXECUTE"
 
                 # Draw player's legal moves
