@@ -18,10 +18,23 @@ def draw_text(screen, text, size, color, x, y):
 # --- CPU AI FUNCTIONS ---
 
 def cpu_easy_move(engine, state):
-    """Random valid move. No strategy at all."""
+    """Random valid move, but biased to maintain forward momentum so it doesn't drive backward"""
     moves = engine.get_legal_moves(state)
     if not moves:
         return None
+        
+    # filter for moves that don't reverse our current velocity
+    forward_moves = []
+    for move in moves:
+        #  if moving right, don't accelerate hard left
+        if state.vx > 0 and move.vx >= 0: forward_moves.append(move)
+        elif state.vx < 0 and move.vx <= 0: forward_moves.append(move)
+        elif state.vy > 0 and move.vy >= 0: forward_moves.append(move)
+        elif state.vy < 0 and move.vy <= 0: forward_moves.append(move)
+        
+    
+    if forward_moves and (state.vx != 0 or state.vy != 0):
+        return random.choice(forward_moves)
     return random.choice(moves)
 
 def cpu_medium_move(engine, state, target):
