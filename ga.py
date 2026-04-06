@@ -50,7 +50,7 @@ class Chromosome:
         self.grid = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
         num = len(self.waypoints)
 
-        # 1. Carve smooth roads connecting the waypoints
+        # Carve smooth roads connecting the waypoints
         for i in range(num):
             p0 = self.waypoints[(i - 1) % num]
             p1 = self.waypoints[i]
@@ -70,7 +70,7 @@ class Chromosome:
                 
                 self._carve_circle(int(x), int(y), radius=2)
 
-        # 2. Border walls 
+        # Border walls 
         for r in range(self.rows):
             self.grid[r][0] = 0
             self.grid[r][self.cols - 1] = 0
@@ -81,15 +81,20 @@ class Chromosome:
         # --- PLACE MARKERS ---
         sx, sy = self.waypoints[0]
         self.start_pos = (sx, sy)
+
+        # Start/Finish lineat the very first waypoint
+        self._draw_transverse_line(0, 3)
+
+        # Start dot on the line so physics engine knows where to spawn
         self.grid[sy][sx] = 2
 
+        # Set target to final waypoint
         fx, fy = self.waypoints[-1]
         self.finish_pos = (fx, fy)
-        self.grid[fy][fx] = 3
 
-        # Place checkpoints as lines across the track
+        # Checkpoints at waypoints
         for i in range(2, len(self.waypoints) - 1, 2):
-            self._draw_checkpoint_line(i)
+            self._draw_transverse_line(i, 4)
 
     def _carve_circle(self, cx, cy, radius):
         """Uses a circular brush to paint the road"""
@@ -101,7 +106,7 @@ class Chromosome:
                         if self.grid[ny][nx] == 0:  
                             self.grid[ny][nx] = 1
 
-    def _draw_checkpoint_line(self, index):
+    def _draw_transverse_line(self, index, tile_value):
         """Draws a thin line perpendicular to the track flow until it hits a wall"""
         import math
         p_prev = self.waypoints[(index - 1) % len(self.waypoints)]
@@ -121,7 +126,7 @@ class Chromosome:
                 
                 if 0 < cx < self.cols - 1 and 0 < cy < self.rows - 1:
                     if self.grid[cy][cx] == 1:  
-                        self.grid[cy][cx] = 4
+                        self.grid[cy][cx] = tile_value
                     elif self.grid[cy][cx] == 0:
                         break
 
@@ -179,9 +184,7 @@ class GeneticAlgorithm:
         # Check the tiles actually exist on the grid
         if chrome.grid[start[1]][start[0]] != 2:
             return 0
-        if chrome.grid[finish[1]][finish[0]] != 3:
-            return 0
-
+        
         # Single A* call: can we get from start to finish?
         start_state = CarState(start[0], start[1], 0, 0)
         finish_coords = [(finish[0], finish[1])]
