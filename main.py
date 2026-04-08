@@ -88,22 +88,30 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
         return
 
     tile = track.grid[y][x]
-    next_cp = len(racer.checkpoints_cleared)  #which checkpoint we need next
+    next_cp = len(racer.checkpoints_cleared)
 
     # Checkpoint hit? Only counts if it's the NEXT one in sequence
     if tile == 4 and next_cp < len(checkpoint_clusters):
         target_cluster = checkpoint_clusters[next_cp]
         if (x, y) in target_cluster:
             racer.checkpoints_cleared.add(next_cp)
-            print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)}")
+            print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)} (Lap {racer.laps_completed + 1})")
 
     # Finish line hit? (only counts if ALL checkpoints cleared in order)
     if tile == 3:
         if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
-            racer.finished = True
-            if racer.finish_turn is None:
-                racer.finish_turn = current_turn
-            print(f"{racer.name} FINISHED!")
+            racer.laps_completed += 1
+            print(f"{racer.name} completed Lap {racer.laps_completed}!")
+            
+            # Did they finish the whole race?
+            if racer.laps_completed >= racer.total_laps:
+                racer.finished = True
+                if racer.finish_turn is None:
+                    racer.finish_turn = current_turn
+                print(f"{racer.name} FINISHED THE RACE!")
+            else:
+                # Reset checkpoints for the next lap!
+                racer.checkpoints_cleared.clear()
 
 # --- DRAWING HELPERS ---
 
@@ -192,7 +200,7 @@ def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
     placements = ["1st", "2nd", "3rd", "4th"]
     for i, racer in enumerate(sorted_racers):
         cp_count = len(racer.checkpoints_cleared)
-        status = "FINISHED" if racer.finished else ("CRASHED" if racer.crashed else f"{cp_count}/{total_cp} CP")
+        status = "FINISHED" if racer.finished else ("CRASHED" if racer.crashed else f"Lap {racer.laps_completed + 1} - {cp_count}/{total_cp} CP")
         
         draw_text(screen, f"{placements[i]} - {racer.name}: {status}", 14, racer.color, x, y)
         y += 20
