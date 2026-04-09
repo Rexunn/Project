@@ -1,5 +1,7 @@
 import pygame
 import settings as s
+import json
+import os
 
 class Track:  #rename to match main
     def __init__(self, image_path):
@@ -145,10 +147,10 @@ class Track:  #rename to match main
 
     def draw(self, screen):
         """Visualise the grid for debugging"""
-        # 1. Draw the actual image of the track (walls and road)
+        # Draw the actual image of the track (walls and road)
         screen.blit(self.surface, (0, 0))
 
-        # 2. Draw debug markers (Start/Finish) on top
+        # Draw debug markers (Start/Finish) on top
         for r in range(self.rows):
             for c in range(self.cols):
                 val = self.grid[r][c]
@@ -158,3 +160,21 @@ class Track:  #rename to match main
                     pygame.draw.rect(screen, s.blue, rect)
                 elif val == 3: #finish
                     pygame.draw.rect(screen, s.finish_colour, rect)
+   # --- FILE SAVING & LOADING ---
+
+    def save_to_file(self, filename="saved_track.json"):
+        """Saves the current grid to a JSON file"""
+        with open(filename, 'w') as f:
+            json.dump(self.grid, f)
+        print(f"Track saved successfully to {filename}!")
+
+    @classmethod
+    def from_file(cls, filename):
+        """Loads a track directly from a saved JSON grid"""
+        try:
+            with open(filename, 'r') as f:
+                grid = json.load(f)
+            return cls.from_grid(grid)
+        except FileNotFoundError:
+            print(f"Error: Could not find {filename}")
+            return None
