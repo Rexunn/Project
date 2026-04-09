@@ -113,84 +113,81 @@ class AStarSolver:
         return None, explored_states    
 
     def solve(self, start_state, use_bfs=False):
-        print("--- STARTING SOLVER ---")
-        start_time = time.time()
+            print("--- STARTING SOLVER ---")
+            start_time = time.time()
 
-        #phase 1: hunt yellow checkpoints
-        checkpoints = self._get_clusters(4)
-        print(f"Found {len(checkpoints)} checkpoint cluster(s)")
+            full_path = []
+            all_explored = []  
+            current_start = start_state
+            total_laps = 3
 
-        full_path = []
-        all_explored = []  # Store all explored states across all searches
-        current_start = start_state
+            for lap in range(total_laps):
+                print(f"\n=== CALCULATING LAP {lap + 1}/{total_laps} ===")
+                
+                # phase 1: hunt yellow checkpoints
+                checkpoints = self._get_clusters(4)
+                checkpoint_num = 0
+                
+                while checkpoints:
+                    checkpoint_num += 1
+                    best_cluster = None
+                    min_dist = float('inf')
+                    for cluster in checkpoints:
+                        cx, cy = cluster[0]
+                        dist = abs(current_start.x - cx) + abs(current_start.y - cy)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_cluster = cluster
 
-        checkpoint_num = 0
-        while checkpoints:
-            checkpoint_num += 1
-            #find nearest cluster
-            best_cluster = None
-            min_dist = float('inf')
-            for cluster in checkpoints:
-                cx, cy = cluster[0]
-                dist = abs(current_start.x - cx) + abs(current_start.y - cy)
-                if dist < min_dist:
-                    min_dist = dist
-                    best_cluster = cluster
+                    # avoid finish line so we don't shortcut
+                    if use_bfs:
+                        segment, explored = self.bfs_search(current_start, best_cluster, avoid_tile=3)
+                    else:
+                        segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
 
-            print(f"Heading to Checkpoint {checkpoint_num}/{checkpoint_num + len(checkpoints) - 1}...")
-            #avoid finish line so we don't shortcut
-            if use_bfs:
-                segment, explored = self.bfs_search(current_start, best_cluster, avoid_tile=3)
-            else:
-                segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
+                    all_explored.extend(explored) 
 
-            all_explored.extend(explored)  # Collect explored states
+                    if not segment:
+                        print("Error: Path to checkpoint blocked.")
+                        return [], all_explored, 0
 
-            if not segment:
-                print("Error: Path to checkpoint blocked.")
-                return [], all_explored, 0
+                    full_path += segment[1:] if full_path else segment
+                    current_start = segment[-1]
+                    checkpoints.remove(best_cluster)
 
-            full_path += segment[1:] if full_path else segment
-            current_start = segment[-1]
-            checkpoints.remove(best_cluster)
-            print(f"Checkpoint {checkpoint_num} reached! Remaining: {len(checkpoints)}")
+                # phase 2: hunt finish (green)
+                finish_pixels = []
+                for y in range(self.rows):
+                    for x in range(self.cols):
+                        if self.engine.track[y][x] == 3:
+                            finish_pixels.append((x, y))
 
-        #phase 2: hunt finish (green)
-        print("\n=== ALL CHECKPOINTS CLEARED ===")
-        print(f"Current car state: position=({current_start.x}, {current_start.y}), velocity=({current_start.vx}, {current_start.vy})")
-        print("Heading to Finish Line...")
-        finish_pixels = []
-        for y in range(self.rows):
-            for x in range(self.cols):
-                if self.engine.track[y][x] == 3:
-                    finish_pixels.append((x, y))
+                if not finish_pixels:
+                    print("WARNING: No finish line found on track!")
+                    return full_path, all_explored, 0
 
-        print(f"Found {len(finish_pixels)} finish line pixel(s)")
-        print(f"Finish line is at positions: {finish_pixels[:5]}..." if len(finish_pixels) > 5 else f"Finish line is at: {finish_pixels}")
+                # now allowed to cross finish line
+                if use_bfs:
+                    final_segment, final_explored = self.bfs_search(current_start, finish_pixels, avoid_tile=None)
+                else:
+                    final_segment, final_explored = self.astar_search(current_start, finish_pixels, avoid_tile=None)
+                
+                all_explored.extend(final_explored) 
 
-        if not finish_pixels:
-            print("WARNING: No finish line found on track!")
-            return full_path, all_explored, 0
+                if not final_segment:
+                    print("ERROR: Cannot find path to finish line!")
+                    return full_path, all_explored, 0
 
-        #now allowed to cross finish line
-        print(f"Attempting to path from ({current_start.x}, {current_start.y}) with velocity ({current_start.vx}, {current_start.vy})...")
-        if use_bfs:
-            final_segment, final_explored = self.bfs_search(current_start, finish_pixels, avoid_tile=None)
-        else:
-            final_segment, final_explored = self.astar_search(current_start, finish_pixels, avoid_tile=None)
-        all_explored.extend(final_explored)  # Collect final explored states
+                # Add this lap's finish line segment to the mega-path
+                full_path += final_segment[1:] if full_path else final_segment
+                # The exact state we crossed the finish line becomes the start state for the next lap!
+                current_start = final_segment[-1] 
 
-        if not final_segment:
-            print("ERROR: Cannot find path to finish line!")
-            return full_path, all_explored, 0
-
-        print(f"SUCCESS! Path to finish found ({len(final_segment)} steps)")
-        complete_path = full_path + final_segment[1:]
-        print(f"\n=== PATH COMPLETE ===")
-        print(f"Total path length: {len(complete_path)} steps")
-        print(f"Total states explored: {len(all_explored)}")
-        solve_time = time.time() - start_time
-        return complete_path, all_explored, solve_time
+            print(f"\n=== 3-LAP PATH COMPLETE ===")
+            print(f"Total path length: {len(full_path)} steps")
+            print(f"Total states explored: {len(all_explored)}")
+            solve_time = time.time() - start_time
+            return full_path, all_explored, solve_time
 
     def _reconstruct_path(self, came_from, current):
         """Backtrack from goal to start"""
