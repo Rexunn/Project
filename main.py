@@ -292,6 +292,10 @@ def main():
                         turn_start_time = time.time() # Reset the 5s timer right as we start
                         race_start_time = time.time()
                         game_state = "RUNNING"
+                    elif event.key == pygame.K_s:
+                        # timestamp to not overwrite previous saves
+                        filename = f"custom_track_{int(time.time())}.json"
+                        track.save_to_file(filename)
 
                 # --- RUNNING (player input) ---
                 elif game_state == "RUNNING" and race_phase == "INPUT":
@@ -457,6 +461,8 @@ def main():
             draw_text(screen, f"Breadth-First Search: {race_stats['bfs_time']:.3f}s  |  {race_stats['bfs_nodes']} nodes explored", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 20)
             
             draw_text(screen, "Press SPACE to start the race", 20, s.white, s.screen_width // 2, s.screen_height // 2 + 100)
+
+            draw_text(screen, "press S to save track", 20, s.cyan, s.screen_width // 2, s.screen_height // 2 + 130)
 
         # ==================== RUNNING ====================
         elif game_state == "RUNNING":
