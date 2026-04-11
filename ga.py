@@ -206,7 +206,7 @@ class GeneticAlgorithm:
             if prev_state.vx != curr_state.vx or prev_state.vy != curr_state.vy:
                 direction_changes += 1
         
-        complexity_bonus = direction_changes * 2  # High reward for twisty tracks
+        complexity_bonus = direction_changes * 1.3  # High reward for twisty tracks
 
         # 3. Size Bonus: Total road area (more road = wider/longer corridors)
         road_count = sum(1 for r in chrome.grid for t in r if t >= 1)
@@ -267,8 +267,8 @@ class GeneticAlgorithm:
                 wx, wy = chrome.waypoints[i]
 
                 # Random shift of 1-5 tiles in any direction
-                wx += random.randint(-5, 5)
-                wy += random.randint(-5, 5)
+                wx += random.randint(-2,2)
+                wy += random.randint(-2, 2)
 
                 # Clamp inside grid
                 wx = max(4, min(self.cols - 5, wx))
