@@ -116,12 +116,13 @@ class Track:  #rename to match main
         surface = pygame.Surface((s.screen_width, s.screen_height))
         import random
 
-        # Define some visual themes for the walls and road
+        # Visual themes for the walls and road
         themes = [
+            # Black walls, gray road
             {0: s.black, 1: s.gray},                         # Classic Tarmac
             {0: (30, 60, 30), 1: (120, 90, 60)},             # Forest Dirt Track
-            {0: (10, 10, 40), 1: (50, 200, 200)},            # Cyberpunk Neon
-            {0: (200, 200, 220), 1: (240, 240, 255)}         # Snow/Ice
+            {0: (247, 68, 27), 1: s.gray},            # Vice city
+            {0: (200, 200, 220), 1: s.gray}         # Snowy
         ]
         
         # Pick a random theme for this specific map
@@ -139,7 +140,12 @@ class Track:  #rename to match main
         for r in range(self.rows):
             for c in range(self.cols):
                 val = self.grid[r][c]
-                colour = colours.get(val, s.gray)
+
+                if val >= 4:
+                    colour = s.yellow
+                else:
+                    colour = colours.get(val, s.gray) # Default to gray if unknown value
+
                 rect = (c * self.TILE_SIZE, r * self.TILE_SIZE, self.TILE_SIZE, self.TILE_SIZE)
                 pygame.draw.rect(surface, colour, rect)
 

@@ -95,6 +95,11 @@ class Chromosome:
         # Checkpoints at waypoints
         for i in range(2, len(self.waypoints) - 1, 2):
             self._draw_transverse_line(i, 4)
+        
+        cp_id = 1
+        for i in range(2, len(self.waypoints) - 1, 2):
+            self._draw_transverse_line(i, cp_id)
+            cp_id += 1 # Increment for next checkpoint
 
     def _carve_circle(self, cx, cy, radius):
         """Uses a circular brush to paint the road"""
