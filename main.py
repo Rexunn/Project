@@ -314,6 +314,27 @@ def main():
                 elif game_state == "GAMEOVER":
                     if event.key == pygame.K_SPACE:
                         game_state = "MENU"
+                    # --- NEW: Instant Restart ---
+                    elif event.key == pygame.K_r:
+                        current_turn = 0
+                        race_phase = "INPUT"
+                        player_ax = 0
+                        player_ay = 0
+                        winner = None
+                        turn_start_time = time.time()
+                        race_start_time = time.time()
+                        
+                        # Teleport everyone back to the start and wipe their memory
+                        for racer in racers:
+                            racer.state = start_state
+                            racer.crashed = False
+                            racer.finished = False
+                            racer.checkpoints_cleared.clear()
+                            racer.laps_completed = 0
+                            racer.finish_turn = None
+                            racer.path_index = 0 # Reset CPU Hard's precomputed path to step 0
+                            
+                        game_state = "RUNNING"
 
         # --- LOGIC & DRAWING ---
         screen.fill(s.gray)
@@ -639,7 +660,8 @@ def main():
                 draw_text(screen, "RACE OVER", 60, s.white, s.screen_width // 2, s.screen_height // 2 - 50)
 
             draw_text(screen, f"Turns: {current_turn}", 30, s.white, s.screen_width // 2, s.screen_height // 2 + 10)
-            draw_text(screen, "Press SPACE to return to Menu", 30, s.white, s.screen_width // 2, s.screen_height // 2 + 50)
+            draw_text(screen, "Press R to Retry this track", 24, s.green, s.screen_width // 2, s.screen_height // 2 + 60)
+            draw_text(screen, "Press SPACE to return to Menu", 20, s.white, s.screen_width // 2, s.screen_height // 2 + 90)
 
         pygame.display.flip()
 
