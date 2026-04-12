@@ -112,7 +112,7 @@ class AStarSolver:
                     came_from[next_state] = current
         return None, explored_states    
 
-    def solve(self, start_state, use_bfs=False):
+    def solve(self, start_state, checkpoint_clusters, use_bfs=False):
             print("--- STARTING SOLVER ---")
             start_time = time.time()
 
@@ -123,37 +123,27 @@ class AStarSolver:
 
             for lap in range(total_laps):
                 print(f"\n=== CALCULATING LAP {lap + 1}/{total_laps} ===")
+            
+            # phase 1: hunt yellow checkpoints in EXACT sequence
+            checkpoint_num = 0
+            
+            for target_cluster in checkpoint_clusters:
+                checkpoint_num += 1
                 
-                # phase 1: hunt yellow checkpoints
-                checkpoints = self._get_clusters(4)
-                checkpoint_num = 0
-                
-                while checkpoints:
-                    checkpoint_num += 1
-                    best_cluster = None
-                    min_dist = float('inf')
-                    for cluster in checkpoints:
-                        cx, cy = cluster[0]
-                        dist = abs(current_start.x - cx) + abs(current_start.y - cy)
-                        if dist < min_dist:
-                            min_dist = dist
-                            best_cluster = cluster
+                # avoid finish line so we don't shortcut
+                if use_bfs:
+                    segment, explored = self.bfs_search(current_start, target_cluster, avoid_tile=3)
+                else:
+                    segment, explored = self.astar_search(current_start, target_cluster, avoid_tile=3)
 
-                    # avoid finish line so we don't shortcut
-                    if use_bfs:
-                        segment, explored = self.bfs_search(current_start, best_cluster, avoid_tile=3)
-                    else:
-                        segment, explored = self.astar_search(current_start, best_cluster, avoid_tile=3)
+                all_explored.extend(explored) 
 
-                    all_explored.extend(explored) 
+                if not segment:
+                    print("Error: Path to checkpoint blocked.")
+                    return [], all_explored, 0
 
-                    if not segment:
-                        print("Error: Path to checkpoint blocked.")
-                        return [], all_explored, 0
-
-                    full_path += segment[1:] if full_path else segment
-                    current_start = segment[-1]
-                    checkpoints.remove(best_cluster)
+                full_path += segment[1:] if full_path else segment
+                current_start = segment[-1]
 
                 # phase 2: hunt finish (green)
                 finish_pixels = []

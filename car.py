@@ -51,7 +51,7 @@ class Racer:
 
         # Lap Tracking
         self.laps_completed = 0
-        self.total_laps = 3
+        self.total_laps = 1
 
         # Timing
         self.finish_turn = None  # turn number when racer finished

@@ -369,7 +369,8 @@ def main():
 
             # CPU Hard (pre-compute optimal path)
             cpu_hard = Racer(start_state, s.racer_colours["CPU_HARD"], "CPU_HARD", "CPU Hard")
-            hard_path, all_explored, solvetime = solver.solve(start_state)
+            hard_path, all_explored, solvetime = solver.solve(start_state, checkpoint_clusters)
+            _, bfs_explored, bfs_time = solver.solve(start_state, checkpoint_clusters, use_bfs=True)
             if hard_path:
                 cpu_hard.precomputed_path = hard_path
                 cpu_hard.explored_states = all_explored
@@ -378,7 +379,7 @@ def main():
 
             # --- RUN BFS FOR COMPARISON ---
             print("Running BFS for comparison...")
-            _, bfs_explored, bfs_time = solver.solve(start_state, use_bfs=True)
+            _, bfs_explored, bfs_time = solver.solve(start_state, checkpoint_clusters, use_bfs=True)
             
          # Save stats globally for the READY screen
             global race_stats 
