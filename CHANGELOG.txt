@@ -72,3 +72,36 @@ CHANGELOG - Racetrack AI Project
 - Implemented a new "READY" game state in main.py that runs a silent BFS comparison after track generation.
 - Added a pre-race UI overlay to display a side-by-side comparison of A* vs. BFS performance (solve time and nodes explored).
 - Updated the main event loop to pause on the READY screen until the player presses SPACE to begin the race.
+
+2026-03-29 | GA Track Polish and Intelligence Upgrade (Phase 4)
+-----------------------------------------------------------------------
+- Refactored track carving logic in ga.py: replaced the square drawing brush with a circular brush (_carve_circle) to eliminate jagged corners and soften track edges.
+- Upgraded track generation math: completely replaced straight-line corridor carving with Catmull-Rom splines to calculate and draw sweeping, organic curves between waypoints.
+- Enhanced GA fitness function in ga.py: implemented a "complexity bonus" that analyzes the A* solver's velocity vector changes to reward technical circuits.
+
+2026-04-05 | UI Overhaul, Game Feel, and Clustering Fix (Phase 5)
+-----------------------------------------------------------------------
+- Upgraded checkpoint drawing logic in ga.py to span the full width of the track.
+- Added dynamic, real-time sorting to the leaderboard based on race progress and Manhattan distance to the next checkpoint.
+- Implemented a velocity HUD gauge to visually indicate current speed against the engine's physics cap.
+- Added visual polish: pulsing orange highlight for active checkpoints and sequential black/white numbering.
+- Fixed checkpoint splitting bug by updating solver.py _get_clusters() to use 8-way diagonal connectivity instead of 4-way.
+
+2026-04-11 | AI Tweaks, Track Flow, and Lap System (Phase 6 Block A & B)
+-----------------------------------------------------------------------
+- Updated turn timeout penalty to carry momentum instead of stopping the car dead (sets acceleration to 0 instead of velocity).
+- Biased CPU Easy move selection to favor maintaining forward momentum to prevent backward driving.
+- Merged start and finish markers into a single unified Start/Finish transverse line to establish proper closed-circuit flow.
+- Added multi-lap state tracking variables (laps_completed, total_laps) to Racer class.
+- Implemented multi-lap game logic: checkpoints now reset upon lap completion, and UI updates to show current lap.
+- Upgraded A* solver to calculate continuous multi-lap racing mega-paths without stopping at the line.
+
+2026-04-11 | Menu Track Selector, JSON Saving, and Sequence Encoding (Phase 6 Block C)
+-----------------------------------------------------------------------
+- Implemented JSON serialization in track.py (save_to_file, from_file) to save and load 2D grids.
+- Added keyboard hook (S) and UI instruction to save newly generated tracks with a timestamp from the READY screen.
+- Tuned GA: reduced mutation variance (-2 to 2) and complexity bonus to generate smoother, less chaotic circuits.
+- Implemented main menu track selector using os module to dynamically load saved .json circuits from the directory.
+- Encoded sequential track flow directly into GA grids (using values 4, 5, 6...) to completely fix geometric sorting bugs.
+- Refactored main engine to extract encoded checkpoints sequentially with fallback support for older JSON saves.
+- Refactored A* solver phase 1 to explicitly follow the encoded sequence list rather than geometric nearest-neighbor, fixing CPU backward-driving bugs.

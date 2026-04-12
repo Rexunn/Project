@@ -211,7 +211,7 @@ class GeneticAlgorithm:
             if prev_state.vx != curr_state.vx or prev_state.vy != curr_state.vy:
                 direction_changes += 1
         
-        complexity_bonus = direction_changes * 1.3  # High reward for twisty tracks
+        complexity_bonus = direction_changes * 1.05  # High reward for twisty tracks
 
         # 3. Size Bonus: Total road area (more road = wider/longer corridors)
         road_count = sum(1 for r in chrome.grid for t in r if t >= 1)

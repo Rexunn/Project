@@ -91,7 +91,7 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
     next_cp = len(racer.checkpoints_cleared)
 
     # Checkpoint hit? Only counts if it's the NEXT one in sequence
-    if tile == 4 and next_cp < len(checkpoint_clusters):
+    if tile >= 4 and next_cp < len(checkpoint_clusters):
         target_cluster = checkpoint_clusters[next_cp]
         if (x, y) in target_cluster:
             racer.checkpoints_cleared.add(next_cp)
@@ -337,9 +337,23 @@ def main():
 
             # --- CREATE RACERS ---
             solver = AStarSolver(engine)
-            checkpoint_clusters = solver._get_clusters(4)
-            checkpoint_clusters = sort_checkpoints_by_circuit(checkpoint_clusters, track.grid)
-            print(f"Checkpoints sorted in circuit order: {len(checkpoint_clusters)} total")
+
+            checkpoint_clusters = []
+            cp_val = 4
+            while True:
+                clusters = solver._get_clusters(cp_val)
+                if not clusters:
+                    break
+                # if it's an old saved track, 'clusters' will have all of them at 1
+                if cp_val == 4 and len(clusters) > 1:
+                    checkpoint_clusters = sort_checkpoints_by_circuit(clusters, track.grid)
+                    break
+                else:
+                    # New track:add them in sequential order
+                    checkpoint_clusters.extend(clusters)
+                cp_val += 1
+
+            print(f"Checkpoints extracted sequentially: {len(checkpoint_clusters)} total")
 
             # Player
             player = Racer(start_state, s.racer_colours["PLAYER"], "PLAYER", "You")

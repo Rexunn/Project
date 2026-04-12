@@ -119,7 +119,7 @@ class AStarSolver:
             full_path = []
             all_explored = []  
             current_start = start_state
-            total_laps = 3
+            total_laps = 1
 
             for lap in range(total_laps):
                 print(f"\n=== CALCULATING LAP {lap + 1}/{total_laps} ===")
@@ -178,12 +178,12 @@ class AStarSolver:
                     print("ERROR: Cannot find path to finish line!")
                     return full_path, all_explored, 0
 
-                # Add this lap's finish line segment to the mega-path
+                # Add this lap's finish line segment to the path
                 full_path += final_segment[1:] if full_path else final_segment
                 # The exact state we crossed the finish line becomes the start state for the next lap!
                 current_start = final_segment[-1] 
 
-            print(f"\n=== 3-LAP PATH COMPLETE ===")
+            print(f"\n=== 1-LAP PATH COMPLETE ===")
             print(f"Total path length: {len(full_path)} steps")
             print(f"Total states explored: {len(all_explored)}")
             solve_time = time.time() - start_time
