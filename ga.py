@@ -17,7 +17,7 @@ class Chromosome:
     The grid is built using Catmull-Rom splines for organic curves.
     Grid values: 0=wall, 1=road, 2=start, 3=finish, 4=checkpoint
     """
-    def __init__(self, cols, rows, num_waypoints=8):
+    def __init__(self, cols, rows, num_waypoints=4):
         self.cols = cols
         self.rows = rows
         self.num_waypoints = num_waypoints
