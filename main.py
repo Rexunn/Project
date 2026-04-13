@@ -268,6 +268,7 @@ def main():
     turn_start_time = 0
     race_start_time = 0
     winner = None
+    show_dev_stats = False
 
     running = True
     while running:
@@ -296,6 +297,8 @@ def main():
                         # timestamp to not overwrite previous saves
                         filename = f"custom_track_{int(time.time())}.json"
                         track.save_to_file(filename)
+                    elif event.key == pygame.K_t:
+                        show_dev_stats = not show_dev_stats    
 
                 # --- RUNNING (player input) ---
                 elif game_state == "RUNNING" and race_phase == "INPUT":
@@ -482,24 +485,28 @@ def main():
         
         # ==================== READY ====================
         elif game_state == "READY":
-            # Draw a dark overlay over the track
+            # Dark overlay
             overlay = pygame.Surface((s.screen_width, s.screen_height))
             overlay.set_alpha(200)
             overlay.fill((0, 0, 0))
             screen.blit(overlay, (0, 0))
 
-            draw_text(screen, "ALGORITHM COMPARISON", 40, s.yellow, s.screen_width // 2, s.screen_height // 2 - 80)
-            
-            # A* Stats
-            draw_text(screen, f"A* Search: {race_stats['astar_time']:.3f}s  |  {race_stats['astar_nodes']} nodes explored", 24, s.green, s.screen_width // 2, s.screen_height // 2 - 20)
-            
-            # BFS Stats
-            draw_text(screen, f"Breadth-First Search: {race_stats['bfs_time']:.3f}s  |  {race_stats['bfs_nodes']} nodes explored", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 20)
-            
-            draw_text(screen, "Press SPACE to start the race", 20, s.white, s.screen_width // 2, s.screen_height // 2 + 100)
+            if not show_dev_stats:
+                # --- PLAYER-FIRST TUTORIAL ---
+                draw_text(screen, "HOW TO PLAY", 50, s.yellow, s.screen_width // 2, s.screen_height // 2 - 120)
+                draw_text(screen, "1. Use ARROW KEYS to aim your acceleration", 24, s.white, s.screen_width // 2, s.screen_height // 2 - 50)
+                draw_text(screen, "2. Press SPACE to confirm your move", 24, s.white, s.screen_width // 2, s.screen_height // 2 - 10)
+                draw_text(screen, "3. You have 5 seconds per turn—don't let the timer run out!", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 30)
+            else:
+                # --- DEVELOPER STATS ---
+                draw_text(screen, "ALGORITHM COMPARISON", 40, s.yellow, s.screen_width // 2, s.screen_height // 2 - 80)
+                draw_text(screen, f"A* Search: {race_stats['astar_time']:.3f}s  |  {race_stats['astar_nodes']} nodes explored", 24, s.green, s.screen_width // 2, s.screen_height // 2 - 20)
+                draw_text(screen, f"Breadth-First Search: {race_stats['bfs_time']:.3f}s  |  {race_stats['bfs_nodes']} nodes explored", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 20)
 
-            draw_text(screen, "press S to save track", 20, s.cyan, s.screen_width // 2, s.screen_height // 2 + 130)
-
+            # --- UNIVERSAL PROMPTS ---
+            draw_text(screen, "Press SPACE to start the race", 24, s.green, s.screen_width // 2, s.screen_height // 2 + 120)
+            draw_text(screen, "Press S to Save track  |  Press T to toggle AI Stats", 18, s.cyan, s.screen_width // 2, s.screen_height // 2 + 160)
+            
         # ==================== RUNNING ====================
         elif game_state == "RUNNING":
 
