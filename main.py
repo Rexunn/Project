@@ -79,40 +79,72 @@ def get_cpu_target(racer, checkpoint_clusters, track):
 
     return (racer.state.x, racer.state.y)  #fallback
 
-def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
-    """Check if a racer hit the NEXT checkpoint in sequence, or the finish line"""
-    x, y = racer.state.x, racer.state.y
+def check_racer_progress(racer, track, checkpoint_clusters, current_turn, old_state):
+    """Sweeps the path to catch lines we jumped over and enforces track flow (Anti-Cheat)"""
+    x1, y1 = old_state.x, old_state.y
+    x2, y2 = racer.state.x, racer.state.y
 
-    # Bounds check
-    if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
-        return
+    # Calculate the line between where we started and where we landed
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    steps = max(dx, dy)
 
-    tile = track.grid[y][x]
-    next_cp = len(racer.checkpoints_cleared)
+    # Generate all tiles crossed this turn
+    tiles_crossed = []
+    if steps == 0:
+        tiles_crossed.append((x1, y1))
+    else:
+        for i in range(1, steps + 1):
+            t = i / steps
+            xt = int(x1 + t * (x2 - x1))
+            yt = int(y1 + t * (y2 - y1))
+            tiles_crossed.append((xt, yt))
 
-    # Checkpoint hit? Only counts if it's the NEXT one in sequence
-    if tile >= 4 and next_cp < len(checkpoint_clusters):
-        target_cluster = checkpoint_clusters[next_cp]
-        if (x, y) in target_cluster:
-            racer.checkpoints_cleared.add(next_cp)
-            print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)} (Lap {racer.laps_completed + 1})")
+    for x, y in tiles_crossed:
+        # Bounds check
+        if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
+            continue
 
-    # Finish line hit? (only counts if ALL checkpoints cleared in order)
-    if tile == 3:
-        if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
-            racer.laps_completed += 1
-            print(f"{racer.name} completed Lap {racer.laps_completed}!")
-            
-            # Did they finish the whole race?
-            if racer.laps_completed >= racer.total_laps:
-                racer.finished = True
-                if racer.finish_turn is None:
-                    racer.finish_turn = current_turn
-                print(f"{racer.name} FINISHED THE RACE!")
-            else:
-                # Reset checkpoints for the next lap!
-                racer.checkpoints_cleared.clear()
+        tile = track.grid[y][x]
+        next_cp = len(racer.checkpoints_cleared)
 
+        # --- WRONG WAY ANTI-CHEAT (The Flow Fix) ---
+        if tile >= 3:
+            # Crossed finish line before clearing all checkpoints
+            if tile == 3 and next_cp < len(checkpoint_clusters):
+                print(f"{racer.name} WRONG WAY! Crossed finish line too early.")
+                racer.crashed = True
+                return
+
+            # Hit a future checkpoint out of sequence
+            elif tile >= 4:
+                hit_cp_index = tile - 4
+                if hit_cp_index > next_cp:
+                    print(f"{racer.name} WRONG WAY! Hit Checkpoint {hit_cp_index + 1} before {next_cp + 1}.")
+                    racer.crashed = True
+                    return
+
+        # --- PROGRESS DETECTION (The Bullet-Through-Paper Fix) ---
+        if tile >= 4 and next_cp < len(checkpoint_clusters):
+            target_cluster = checkpoint_clusters[next_cp]
+            if (x, y) in target_cluster:
+                racer.checkpoints_cleared.add(next_cp)
+                print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)} (Lap {racer.laps_completed + 1})")
+                next_cp = len(racer.checkpoints_cleared) # Update target immediately in case they hit two in one turn
+
+        if tile == 3:
+            if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
+                racer.laps_completed += 1
+                print(f"{racer.name} completed Lap {racer.laps_completed}!")
+
+                if racer.laps_completed >= racer.total_laps:
+                    racer.finished = True
+                    if racer.finish_turn is None:
+                        racer.finish_turn = current_turn
+                    print(f"{racer.name} FINISHED THE RACE!")
+                    return # Stop checking path once finished
+                else:
+                    racer.checkpoints_cleared.clear()
 # --- DRAWING HELPERS ---
 
 def draw_legal_moves(screen, moves, selected_ax, selected_ay, current_state, track):
@@ -587,8 +619,10 @@ def main():
                         racer.crashed = True
                         print(f"{racer.name} CRASHED! No legal moves.")
                     else:
+                        old_state = racer.state
                         racer.state = new_state
-                        check_racer_progress(racer, track, checkpoint_clusters, current_turn)
+
+                        check_racer_progress(racer, track, checkpoint_clusters, current_turn, old_state )
 
                 # Check for winner
                 for racer in racers:

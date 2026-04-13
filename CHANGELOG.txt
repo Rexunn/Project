@@ -105,3 +105,10 @@ CHANGELOG - Racetrack AI Project
 - Encoded sequential track flow directly into GA grids (using values 4, 5, 6...) to completely fix geometric sorting bugs.
 - Refactored main engine to extract encoded checkpoints sequentially with fallback support for older JSON saves.
 - Refactored A* solver phase 1 to explicitly follow the encoded sequence list rather than geometric nearest-neighbor, fixing CPU backward-driving bugs.
+
+2026-04-13 | Playtester UX Polish & Optimization (Phase 6)
+-----------------------------------------------------------------------
+- Tuned track generation: reduced waypoints from 8 to 6 and shortened races to 2 laps to improve track readability based on playtester feedback.
+- Implemented a memory-cached instant restart feature (R key) on the game over screen to instantly reset the race and bypass redundant A* recalculations.
+- Revamped the READY screen to prioritize a player-first controls tutorial.
+- Hid technical A* and BFS comparison stats behind a new Developer Mode toggle (T key) to avoid overwhelming casual players.
