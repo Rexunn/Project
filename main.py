@@ -10,11 +10,7 @@ from solver import AStarSolver
 from ga import GeneticAlgorithm
 from game_state_manager import GameState, GameStateManager
 
-def draw_text(screen, text, size, color, x, y):
-    font = pygame.font.SysFont("arial", size, bold=True)
-    surface = font.render(text, True, color)
-    rect = surface.get_rect(center=(x, y))
-    screen.blit(surface, rect)
+
 
 # --- CPU AI FUNCTIONS ---
 
@@ -135,95 +131,6 @@ def draw_legal_moves(screen, moves, selected_ax, selected_ay, current_state, tra
             pygame.draw.circle(dot, (255, 255, 255, 100), (4, 4), 4)
             screen.blit(dot, (px - 4, py - 4))
 
-def draw_timer_bar(screen, time_remaining, max_time):
-    """Draw a countdown bar at the top of the screen"""
-    bar_width = 300
-    bar_height = 20
-    bar_x = s.screen_width // 2 - bar_width // 2
-    bar_y = 10
-
-    # Background
-    pygame.draw.rect(screen, s.black, (bar_x, bar_y, bar_width, bar_height))
-
-    # Fill (green -> red as time runs out)
-    ratio = max(0, time_remaining / max_time)
-    fill_width = int(bar_width * ratio)
-    color = s.green if ratio > 0.33 else s.red
-    pygame.draw.rect(screen, color, (bar_x, bar_y, fill_width, bar_height))
-
-    # Label
-    draw_text(screen, f"{time_remaining:.1f}s", 16, s.white, s.screen_width // 2, bar_y + bar_height + 12)
-
-def draw_velocity_hud(screen, state):
-    """Draws a dynamic speed gauge on the HUD"""
-    speed = max(abs(state.vx), abs(state.vy))
-    
-    hx, hy = s.screen_width // 2 - 35, 45
-    draw_text(screen, "SPEED:", 14, s.white, hx - 30, hy)
-    
-    for i in range(1, 6):
-        color = s.gray 
-        if i <= speed:
-            if i <= 2: color = s.green       
-            elif i <= 4: color = s.yellow    
-            else: color = s.red              
-            
-        pygame.draw.rect(screen, color, (hx + (i-1)*15, hy - 8, 10, 16))
-
-def draw_leaderboard(screen, racers, checkpoint_clusters, current_turn):
-    """Draw race progress in the top-right corner, dynamically sorted by position"""
-    total_cp = len(checkpoint_clusters)
-    x = s.screen_width - 180
-    y = 10
-
-    draw_text(screen, f"Turn: {current_turn}", 16, s.white, x, y)
-    y += 25
-
-    # Dynamic sorting logic
-    def get_racer_score(r):
-        if r.crashed: return (-1, 0, 0)
-        if r.finished: return (100, -r.finish_turn, 0)
-        
-        cp_count = len(r.checkpoints_cleared)
-        dist_to_next = float('inf')
-        
-        if cp_count < total_cp:
-            target_cluster = checkpoint_clusters[cp_count]
-            if target_cluster: # Safety check
-                cx = sum(tx for tx, ty in target_cluster) / len(target_cluster)
-                cy = sum(ty for tx, ty in target_cluster) / len(target_cluster)
-                dist_to_next = abs(r.state.x - cx) + abs(r.state.y - cy)
-            
-        return (1, cp_count, -dist_to_next) 
-
-    sorted_racers = sorted(racers, key=get_racer_score, reverse=True)
-
-    placements = ["1st", "2nd", "3rd", "4th"]
-    for i, racer in enumerate(sorted_racers):
-        cp_count = len(racer.checkpoints_cleared)
-        status = "FINISHED" if racer.finished else ("CRASHED" if racer.crashed else f"Lap {racer.laps_completed + 1} - {cp_count}/{total_cp} CP")
-        
-        draw_text(screen, f"{placements[i]} - {racer.name}: {status}", 14, racer.color, x, y)
-        y += 20
-
-        if racer.type == "CPU_HARD":
-            path_len = len(racer.precomputed_path)
-            nodes = len(racer.explored_states)
-            solvetime = racer.solve_time
-           
-            draw_text(screen, f"Path: {path_len} steps", 12, s.white, x + 10, y)
-            y += 15
-            draw_text(screen, f"Nodes: {nodes}", 12, s.white, x + 10, y)
-            y += 15
-            draw_text(screen, f"Time: {solvetime:.3f}s", 12, s.white, x + 10, y)
-            y += 15
-
-    y += 15
-    draw_text(screen, "--- CONTROLS ---", 14, s.yellow, x, y)
-    y += 15
-    draw_text(screen, "Arrows: Aim", 12, s.white, x, y)
-    y += 15
-    draw_text(screen, "Space: Confirm Move", 12, s.white, x, y)
 
 def draw_racers(screen, racers, track):
     """Draw all racer circles on the track"""
