@@ -1,14 +1,42 @@
-import pygame
+"""
+State flow:
+  BOOT_MENU -> MAP_SELECT | GENERATING | LOADING
+  LOADING   -> AI_PREVIEW
+  AI_PREVIEW-> PRE_RACE
+  PRE_RACE  -> RUNNING
+  RUNNING   -> WIN | LOSE
+  WIN / LOSE-> PRE_RACE (restart) | GENERATING | BOOT_MENU
+"""
+
+import math
+import os
 import random
 import time
-import math
+
+import pygame
+
 import settings as s
-from track import Track
-from game_engine import PhysicsEngine
 from car import CarState, Racer
-from solver import AStarSolver
 from ga import GeneticAlgorithm
+from game_engine import PhysicsEngine
 from game_state_manager import GameState, GameStateManager
+from ghost_recorder import GhostCar, GhostRecorder, load_ghost, save_ghost, track_id
+from solver import AStarSolver
+from track import Track
+from ui import (
+    draw_boot_background,
+    draw_hint_row,
+    draw_leaderboard,
+    draw_lives,
+    draw_menu_list,
+    draw_overlay,
+    draw_panel,
+    draw_place_badge,
+    draw_pulsing_text,
+    draw_speed_gauge,
+    draw_text,
+    draw_timer_bar,
+)
 
 
 
@@ -148,7 +176,7 @@ def draw_racers(screen, racers, track):
 def main():
     pygame.init()
     screen = pygame.display.set_mode((s.screen_width, s.screen_height))
-    pygame.display.set_caption("Racetrack AI Prototype")
+    pygame.display.set_caption("The Racetrack Game")
     clock = pygame.time.Clock()
 
     # --- LOADING ASSETS ---
@@ -165,10 +193,8 @@ def main():
 
     start_state = CarState(start_x, start_y, 0, 0)
 
-    # ── Commit 1: replace raw string with GameStateManager ───────────────────
-    # Before: game_state = "MENU"
-    # After:  gsm wraps the same string but validates every transition.
-    gsm = GameStateManager(GameState.MENU)
+    
+    gsm = GameStateManager(GameState.BOOT_MENU)
     # ─────────────────────────────────────────────────────────────────────────
 
     racers = []
@@ -194,7 +220,7 @@ def main():
 
             if event.type == pygame.KEYDOWN:
                 # --- MENU ---
-                if gsm == GameState.MENU:
+                if gsm == GameState.BOOT_MENU:
                     if event.key == pygame.K_SPACE:
                         gsm.transition(GameState.LOADING)
                     elif event.key == pygame.K_n:
@@ -228,7 +254,7 @@ def main():
                 # --- GAMEOVER ---
                 elif gsm == GameState.GAMEOVER:
                     if event.key == pygame.K_SPACE:
-                        gsm.transition(GameState.MENU)
+                        gsm.transition(GameState.BOOT_MENU)
                     elif event.key == pygame.K_r:
                         # Restart: reuse current race data, skip LOADING.
                         # GAMEOVER -> RUNNING is explicitly allowed in the
@@ -256,8 +282,8 @@ def main():
         screen.fill(s.gray)
         track.draw(screen)
 
-        # ==================== MENU ====================
-        if gsm == GameState.MENU:
+        # ==================== BOOT MENU ====================
+        if gsm == GameState.BOOT_MENU:
             overlay = pygame.Surface((s.screen_width, s.screen_height))
             overlay.set_alpha(128)
             overlay.fill((0, 0, 0))
