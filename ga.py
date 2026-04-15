@@ -17,7 +17,7 @@ class Chromosome:
     The grid is built using Catmull-Rom splines for organic curves.
     Grid values: 0=wall, 1=road, 2=start, 3=finish, 4=checkpoint
     """
-    def __init__(self, cols, rows, num_waypoints=4):
+    def __init__(self, cols, rows, num_waypoints=6):
         self.cols = cols
         self.rows = rows
         self.num_waypoints = num_waypoints
@@ -211,7 +211,7 @@ class GeneticAlgorithm:
             if prev_state.vx != curr_state.vx or prev_state.vy != curr_state.vy:
                 direction_changes += 1
         
-        complexity_bonus = direction_changes * 0.75  # High reward for twisty tracks
+        complexity_bonus = direction_changes * 1.25  # High reward for twisty tracks
 
         # 3. Size Bonus: Total road area (more road = wider/longer corridors)
         road_count = sum(1 for r in chrome.grid for t in r if t >= 1)
@@ -272,8 +272,8 @@ class GeneticAlgorithm:
                 wx, wy = chrome.waypoints[i]
 
                 # Random shift of 1-5 tiles in any direction
-                wx += random.randint(-2,2)
-                wy += random.randint(-2, 2)
+                wx += random.randint(-3,3)
+                wy += random.randint(-5, 5)
 
                 # Clamp inside grid
                 wx = max(4, min(self.cols - 5, wx))

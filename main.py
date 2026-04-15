@@ -8,6 +8,7 @@ from game_engine import PhysicsEngine
 from car import CarState, Racer
 from solver import AStarSolver
 from ga import GeneticAlgorithm
+from game_state_manager import GameState, GameStateManager
 
 def draw_text(screen, text, size, color, x, y):
     font = pygame.font.SysFont("arial", size, bold=True)
@@ -79,72 +80,40 @@ def get_cpu_target(racer, checkpoint_clusters, track):
 
     return (racer.state.x, racer.state.y)  #fallback
 
-def check_racer_progress(racer, track, checkpoint_clusters, current_turn, old_state):
-    """Sweeps the path to catch lines we jumped over and enforces track flow (Anti-Cheat)"""
-    x1, y1 = old_state.x, old_state.y
-    x2, y2 = racer.state.x, racer.state.y
+def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
+    """Check if a racer hit the NEXT checkpoint in sequence, or the finish line"""
+    x, y = racer.state.x, racer.state.y
 
-    # Calculate the line between where we started and where we landed
-    dx = abs(x2 - x1)
-    dy = abs(y2 - y1)
-    steps = max(dx, dy)
+    # Bounds check
+    if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
+        return
 
-    # Generate all tiles crossed this turn
-    tiles_crossed = []
-    if steps == 0:
-        tiles_crossed.append((x1, y1))
-    else:
-        for i in range(1, steps + 1):
-            t = i / steps
-            xt = int(x1 + t * (x2 - x1))
-            yt = int(y1 + t * (y2 - y1))
-            tiles_crossed.append((xt, yt))
+    tile = track.grid[y][x]
+    next_cp = len(racer.checkpoints_cleared)
 
-    for x, y in tiles_crossed:
-        # Bounds check
-        if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
-            continue
+    # Checkpoint hit? Only counts if it's the NEXT one in sequence
+    if tile >= 4 and next_cp < len(checkpoint_clusters):
+        target_cluster = checkpoint_clusters[next_cp]
+        if (x, y) in target_cluster:
+            racer.checkpoints_cleared.add(next_cp)
+            print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)} (Lap {racer.laps_completed + 1})")
 
-        tile = track.grid[y][x]
-        next_cp = len(racer.checkpoints_cleared)
+    # Finish line hit? (only counts if ALL checkpoints cleared in order)
+    if tile == 3:
+        if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
+            racer.laps_completed += 1
+            print(f"{racer.name} completed Lap {racer.laps_completed}!")
+            
+            # Did they finish the whole race?
+            if racer.laps_completed >= racer.total_laps:
+                racer.finished = True
+                if racer.finish_turn is None:
+                    racer.finish_turn = current_turn
+                print(f"{racer.name} FINISHED THE RACE!")
+            else:
+                # Reset checkpoints for the next lap!
+                racer.checkpoints_cleared.clear()
 
-        # --- WRONG WAY ANTI-CHEAT (The Flow Fix) ---
-        if tile >= 3:
-            # Crossed finish line before clearing all checkpoints
-            if tile == 3 and next_cp < len(checkpoint_clusters):
-                print(f"{racer.name} WRONG WAY! Crossed finish line too early.")
-                racer.crashed = True
-                return
-
-            # Hit a future checkpoint out of sequence
-            elif tile >= 4:
-                hit_cp_index = tile - 4
-                if hit_cp_index > next_cp:
-                    print(f"{racer.name} WRONG WAY! Hit Checkpoint {hit_cp_index + 1} before {next_cp + 1}.")
-                    racer.crashed = True
-                    return
-
-        # --- PROGRESS DETECTION (The Bullet-Through-Paper Fix) ---
-        if tile >= 4 and next_cp < len(checkpoint_clusters):
-            target_cluster = checkpoint_clusters[next_cp]
-            if (x, y) in target_cluster:
-                racer.checkpoints_cleared.add(next_cp)
-                print(f"{racer.name} cleared checkpoint {next_cp + 1}/{len(checkpoint_clusters)} (Lap {racer.laps_completed + 1})")
-                next_cp = len(racer.checkpoints_cleared) # Update target immediately in case they hit two in one turn
-
-        if tile == 3:
-            if len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
-                racer.laps_completed += 1
-                print(f"{racer.name} completed Lap {racer.laps_completed}!")
-
-                if racer.laps_completed >= racer.total_laps:
-                    racer.finished = True
-                    if racer.finish_turn is None:
-                        racer.finish_turn = current_turn
-                    print(f"{racer.name} FINISHED THE RACE!")
-                    return # Stop checking path once finished
-                else:
-                    racer.checkpoints_cleared.clear()
 # --- DRAWING HELPERS ---
 
 def draw_legal_moves(screen, moves, selected_ax, selected_ay, current_state, track):
@@ -289,8 +258,12 @@ def main():
 
     start_state = CarState(start_x, start_y, 0, 0)
 
-    # --- GAME VARIABLES ---
-    game_state = "MENU"  # MENU, LOADING, GENERATING, RUNNING, GAMEOVER
+    # ── Commit 1: replace raw string with GameStateManager ───────────────────
+    # Before: game_state = "MENU"
+    # After:  gsm wraps the same string but validates every transition.
+    gsm = GameStateManager(GameState.MENU)
+    # ─────────────────────────────────────────────────────────────────────────
+
     racers = []
     checkpoint_clusters = []
     current_turn = 0
@@ -301,6 +274,7 @@ def main():
     race_start_time = 0
     winner = None
     show_dev_stats = False
+    race_stats = {}  # moved out of global scope
 
     running = True
     while running:
@@ -313,27 +287,26 @@ def main():
 
             if event.type == pygame.KEYDOWN:
                 # --- MENU ---
-                if game_state == "MENU":
+                if gsm == GameState.MENU:
                     if event.key == pygame.K_SPACE:
-                        game_state = "LOADING"
+                        gsm.transition(GameState.LOADING)
                     elif event.key == pygame.K_n:
-                        game_state = "GENERATING"
+                        gsm.transition(GameState.GENERATING)
 
                 # --- READY ---
-                elif game_state == "READY":
+                elif gsm == GameState.READY:
                     if event.key == pygame.K_SPACE:
-                        turn_start_time = time.time() # Reset the 5s timer right as we start
+                        turn_start_time = time.time()
                         race_start_time = time.time()
-                        game_state = "RUNNING"
+                        gsm.transition(GameState.RUNNING)
                     elif event.key == pygame.K_s:
-                        # timestamp to not overwrite previous saves
                         filename = f"custom_track_{int(time.time())}.json"
                         track.save_to_file(filename)
                     elif event.key == pygame.K_t:
-                        show_dev_stats = not show_dev_stats    
+                        show_dev_stats = not show_dev_stats
 
                 # --- RUNNING (player input) ---
-                elif game_state == "RUNNING" and race_phase == "INPUT":
+                elif gsm == GameState.RUNNING and race_phase == "INPUT":
                     if event.key == pygame.K_UP:
                         player_ay = max(-2, player_ay - 1)
                     elif event.key == pygame.K_DOWN:
@@ -343,14 +316,16 @@ def main():
                     elif event.key == pygame.K_RIGHT:
                         player_ax = min(2, player_ax + 1)
                     elif event.key == pygame.K_SPACE:
-                        race_phase = "EXECUTE"  #confirm move
-                
+                        race_phase = "EXECUTE"
+
                 # --- GAMEOVER ---
-                elif game_state == "GAMEOVER":
+                elif gsm == GameState.GAMEOVER:
                     if event.key == pygame.K_SPACE:
-                        game_state = "MENU"
-                    # --- NEW: Instant Restart ---
+                        gsm.transition(GameState.MENU)
                     elif event.key == pygame.K_r:
+                        # Restart: reuse current race data, skip LOADING.
+                        # GAMEOVER -> RUNNING is explicitly allowed in the
+                        # transition table for exactly this case.
                         current_turn = 0
                         race_phase = "INPUT"
                         player_ax = 0
@@ -358,8 +333,7 @@ def main():
                         winner = None
                         turn_start_time = time.time()
                         race_start_time = time.time()
-                        
-                        # Teleport everyone back to the start and wipe their memory
+
                         for racer in racers:
                             racer.state = start_state
                             racer.crashed = False
@@ -367,16 +341,16 @@ def main():
                             racer.checkpoints_cleared.clear()
                             racer.laps_completed = 0
                             racer.finish_turn = None
-                            racer.path_index = 0 # Reset CPU Hard's precomputed path to step 0
-                            
-                        game_state = "RUNNING"
+                            racer.path_index = 0
+
+                        gsm.transition(GameState.RUNNING)
 
         # --- LOGIC & DRAWING ---
         screen.fill(s.gray)
         track.draw(screen)
 
         # ==================== MENU ====================
-        if game_state == "MENU":
+        if gsm == GameState.MENU:
             overlay = pygame.Surface((s.screen_width, s.screen_height))
             overlay.set_alpha(128)
             overlay.fill((0, 0, 0))
@@ -387,11 +361,10 @@ def main():
             draw_text(screen, "Press N for New GA Track", 30, s.yellow, s.screen_width // 2, s.screen_height // 2 + 60)
 
         # ==================== LOADING ====================
-        elif game_state == "LOADING":
+        elif gsm == GameState.LOADING:
             draw_text(screen, "Setting up race...", 40, s.white, s.screen_width // 2, s.screen_height // 2)
             pygame.display.flip()
 
-            # --- CREATE RACERS ---
             solver = AStarSolver(engine)
 
             checkpoint_clusters = []
@@ -400,30 +373,24 @@ def main():
                 clusters = solver._get_clusters(cp_val)
                 if not clusters:
                     break
-                # if it's an old saved track, 'clusters' will have all of them at 1
                 if cp_val == 4 and len(clusters) > 1:
                     checkpoint_clusters = sort_checkpoints_by_circuit(clusters, track.grid)
                     break
                 else:
-                    # New track:add them in sequential order
                     checkpoint_clusters.extend(clusters)
                 cp_val += 1
 
             print(f"Checkpoints extracted sequentially: {len(checkpoint_clusters)} total")
 
-            # Player
             player = Racer(start_state, s.racer_colours["PLAYER"], "PLAYER", "You")
             racers = [player]
 
-            # CPU Easy
             cpu_easy = Racer(start_state, s.racer_colours["CPU_EASY"], "CPU_EASY", "CPU Easy")
             racers.append(cpu_easy)
 
-            # CPU Medium
             cpu_med = Racer(start_state, s.racer_colours["CPU_MEDIUM"], "CPU_MEDIUM", "CPU Med")
             racers.append(cpu_med)
 
-            # CPU Hard (pre-compute optimal path)
             cpu_hard = Racer(start_state, s.racer_colours["CPU_HARD"], "CPU_HARD", "CPU Hard")
             hard_path, all_explored, solvetime = solver.solve(start_state, checkpoint_clusters)
             _, bfs_explored, bfs_time = solver.solve(start_state, checkpoint_clusters, use_bfs=True)
@@ -433,12 +400,9 @@ def main():
                 cpu_hard.solve_time = solvetime
             racers.append(cpu_hard)
 
-            # --- RUN BFS FOR COMPARISON ---
             print("Running BFS for comparison...")
             _, bfs_explored, bfs_time = solver.solve(start_state, checkpoint_clusters, use_bfs=True)
-            
-         # Save stats globally for the READY screen
-            global race_stats 
+
             race_stats = {
                 "astar_time": solvetime,
                 "astar_nodes": len(all_explored),
@@ -448,47 +412,36 @@ def main():
 
             print(f"Race ready! {len(racers)} racers, {len(checkpoint_clusters)} checkpoints")
 
-            # Reset race state variables 
             current_turn = 0
             race_phase = "INPUT"
             player_ax = 0
             player_ay = 0
             winner = None
-            
-            # Switch to comparison screen!
-            game_state = "READY"
+
+            gsm.transition(GameState.READY)
 
         # ==================== GENERATING ====================
-        elif game_state == "GENERATING":
-            
-            # This function is passed to the GA and called every generation
-            def draw_ga_progress(current_gen, max_gens, history):
-                pygame.event.pump() # Keeps the OS from thinking the game has frozen
+        elif gsm == GameState.GENERATING:
 
+            def draw_ga_progress(current_gen, max_gens, history):
+                pygame.event.pump()
                 screen.fill(s.gray)
                 draw_text(screen, "Evolving Track Layout...", 40, s.yellow, s.screen_width // 2, 100)
                 draw_text(screen, f"Generation: {current_gen} / {max_gens}", 30, s.white, s.screen_width // 2, 160)
 
-                # --- DRAW THE LINE GRAPH ---
                 if history:
-                    # Dimensions of the graph box
-                    gx, gy = 200, 600  # Bottom-left corner of the graph
-                    gw, gh = 600, 300  # Width and Height
-                    
-                    # Graph Background
+                    gx, gy = 200, 600
+                    gw, gh = 600, 300
+
                     pygame.draw.rect(screen, s.black, (gx, gy - gh, gw, gh))
-                    
-                    # Calculate points based on fitness scores
+
                     max_fit = max(max(history), 1)
                     points = []
                     for i, fit in enumerate(history):
-                        # X position spreads across the width based on generation count
                         px = gx + int((i / max(1, len(history) - 1)) * gw)
-                        # Y position scales up based on max fitness
                         py = gy - int((fit / max_fit) * gh)
                         points.append((px, py))
 
-                    # Draw the lines and data points
                     if len(points) > 1:
                         pygame.draw.lines(screen, s.green, False, points, 3)
                         for p in points:
@@ -496,81 +449,63 @@ def main():
 
                 pygame.display.flip()
 
-            # Run the GA and pass in our drawing function
             ga = GeneticAlgorithm(population_size=20, generations=35, mutation_rate=0.3)
             best = ga.run(update_callback=draw_ga_progress)
 
             if best.fitness == 0:
                 print("GA failed. Returning to menu.")
-                game_state = "MENU"
+                gsm.transition(GameState.MENU)
             else:
-                # Build track from GA grid
                 track = Track.from_grid(best.grid)
                 engine = PhysicsEngine(track.grid)
 
-                # Update start position
                 start_x, start_y = best.start_pos
                 start_state = CarState(start_x, start_y, 0, 0)
 
-                # Go to LOADING to set up the race
-                game_state = "LOADING"
-        
+                gsm.transition(GameState.LOADING)
+
         # ==================== READY ====================
-        elif game_state == "READY":
-            # Dark overlay
+        elif gsm == GameState.READY:
             overlay = pygame.Surface((s.screen_width, s.screen_height))
             overlay.set_alpha(200)
             overlay.fill((0, 0, 0))
             screen.blit(overlay, (0, 0))
 
             if not show_dev_stats:
-                # --- PLAYER-FIRST TUTORIAL ---
                 draw_text(screen, "HOW TO PLAY", 50, s.yellow, s.screen_width // 2, s.screen_height // 2 - 120)
                 draw_text(screen, "1. Use ARROW KEYS to aim your acceleration", 24, s.white, s.screen_width // 2, s.screen_height // 2 - 50)
                 draw_text(screen, "2. Press SPACE to confirm your move", 24, s.white, s.screen_width // 2, s.screen_height // 2 - 10)
                 draw_text(screen, "3. You have 5 seconds per turn—don't let the timer run out!", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 30)
             else:
-                # --- DEVELOPER STATS ---
                 draw_text(screen, "ALGORITHM COMPARISON", 40, s.yellow, s.screen_width // 2, s.screen_height // 2 - 80)
                 draw_text(screen, f"A* Search: {race_stats['astar_time']:.3f}s  |  {race_stats['astar_nodes']} nodes explored", 24, s.green, s.screen_width // 2, s.screen_height // 2 - 20)
                 draw_text(screen, f"Breadth-First Search: {race_stats['bfs_time']:.3f}s  |  {race_stats['bfs_nodes']} nodes explored", 24, s.red, s.screen_width // 2, s.screen_height // 2 + 20)
 
-            # --- UNIVERSAL PROMPTS ---
             draw_text(screen, "Press SPACE to start the race", 24, s.green, s.screen_width // 2, s.screen_height // 2 + 120)
             draw_text(screen, "Press S to Save track  |  Press T to toggle AI Stats", 18, s.cyan, s.screen_width // 2, s.screen_height // 2 + 160)
-            
-        # ==================== RUNNING ====================
-        elif game_state == "RUNNING":
 
-            # --- INPUT PHASE: player picks acceleration ---
+        # ==================== RUNNING ====================
+        elif gsm == GameState.RUNNING:
+
             if race_phase == "INPUT":
-                # Timer
                 elapsed = time.time() - turn_start_time
                 time_remaining = s.turn_time_limit - elapsed
 
-                # Timer expired — force car to stay in place (velocity reset to 0)
                 if time_remaining <= 0:
                     player_ax = 0
                     player_ay = 0
                     race_phase = "EXECUTE"
 
-                # Draw player's legal moves
                 player_racer = racers[0]
                 if not player_racer.finished and not player_racer.crashed:
                     legal_moves = engine.get_legal_moves(player_racer.state)
                     draw_legal_moves(screen, legal_moves, player_ax, player_ay, player_racer.state, track)
                     draw_timer_bar(screen, max(0, time_remaining), s.turn_time_limit)
-                    
-                    # --- DRAW VELOCITY GAUGE ---
                     draw_velocity_hud(screen, player_racer.state)
-
-                    # Show selected acceleration
                     draw_text(screen, f"Accel: ({player_ax}, {player_ay})", 18, s.white, s.screen_width // 2, s.screen_height - 30)
                 else:
-                    # Player already finished/crashed, skip to execute
                     race_phase = "EXECUTE"
 
-            # --- EXECUTE PHASE: all racers move ---
             if race_phase == "EXECUTE":
                 for racer in racers:
                     if racer.finished or racer.crashed:
@@ -579,20 +514,16 @@ def main():
                     new_state = None
 
                     if racer.type == "PLAYER":
-                        # If timer forced a stop, state is already updated — just check progress
                         if racer.state.vx == 0 and racer.state.vy == 0 and player_ax == 0 and player_ay == 0:
                             new_state = racer.state
                         else:
-                            # Apply player's chosen acceleration
                             new_vx = racer.state.vx + player_ax
                             new_vy = racer.state.vy + player_ay
-                            # Clamp velocity
                             new_vx = max(-5, min(5, new_vx))
                             new_vy = max(-5, min(5, new_vy))
                             new_x = racer.state.x + new_vx
                             new_y = racer.state.y + new_vy
 
-                            # Validate the move — hitting a wall = crash
                             if engine._check_path(racer.state.x, racer.state.y, new_x, new_y) and engine._is_safe(new_x, new_y):
                                 new_state = CarState(new_x, new_y, new_vx, new_vy)
                             else:
@@ -612,37 +543,30 @@ def main():
                             new_state = racer.precomputed_path[racer.path_index]
                             racer.path_index += 1
                         else:
-                            new_state = None  #path exhausted
+                            new_state = None
 
-                    # Apply move or crash
                     if new_state is None:
                         racer.crashed = True
                         print(f"{racer.name} CRASHED! No legal moves.")
                     else:
-                        old_state = racer.state
                         racer.state = new_state
+                        check_racer_progress(racer, track, checkpoint_clusters, current_turn)
 
-                        check_racer_progress(racer, track, checkpoint_clusters, current_turn, old_state )
-
-                # Check for winner
                 for racer in racers:
                     if racer.finished and winner is None:
                         winner = racer
 
-                # Check if race is over
                 all_done = all(r.finished or r.crashed for r in racers)
                 if winner or all_done or current_turn >= 200:
-                    game_state = "GAMEOVER"
+                    gsm.transition(GameState.GAMEOVER)
                 else:
-                    # Next turn
                     current_turn += 1
                     race_phase = "INPUT"
                     player_ax = 0
                     player_ay = 0
                     turn_start_time = time.time()
-                
-          # ==================== DRAWING ====================
-            # 1. Draw CPU Hard's precomputed ghost path as dots
+
+            # ==================== DRAWING ====================
             for racer in racers:
                 if racer.type == "CPU_HARD" and racer.precomputed_path:
                     for state in racer.precomputed_path:
@@ -650,44 +574,38 @@ def main():
                         py = state.y * track.TILE_SIZE + (track.TILE_SIZE // 2)
                         pygame.draw.circle(screen, s.cyan, (px, py), 3)
 
-            # --- HIGHLIGHT ACTIVE CHECKPOINT ---
             player_racer = racers[0]
             next_cp_idx = len(player_racer.checkpoints_cleared)
-            
+
             if next_cp_idx < len(checkpoint_clusters):
                 active_cluster = checkpoint_clusters[next_cp_idx]
-                if active_cluster: # Safety check
-                    pulse = (math.sin(time.time() * 5) + 1) / 2  
-                    alpha = int(80 + 100 * pulse)  
-                    
+                if active_cluster:
+                    pulse = (math.sin(time.time() * 5) + 1) / 2
+                    alpha = int(80 + 100 * pulse)
+
                     glow_surface = pygame.Surface((track.TILE_SIZE, track.TILE_SIZE), pygame.SRCALPHA)
-                    glow_surface.fill((255, 165, 0, alpha)) 
-                    
+                    glow_surface.fill((255, 165, 0, alpha))
+
                     for (cx, cy) in active_cluster:
                         px = cx * track.TILE_SIZE
                         py = cy * track.TILE_SIZE
                         screen.blit(glow_surface, (px, py))
 
-            # --- DRAW CHECKPOINT NUMBERS ---
             for i, cluster in enumerate(checkpoint_clusters):
-                if cluster: # Safety check
+                if cluster:
                     cx = sum(x for x, y in cluster) // len(cluster)
                     cy = sum(y for x, y in cluster) // len(cluster)
                     px = cx * track.TILE_SIZE + (track.TILE_SIZE // 2)
                     py = cy * track.TILE_SIZE + (track.TILE_SIZE // 2)
-                    
+
                     pygame.draw.circle(screen, s.black, (px, py), 10)
                     draw_text(screen, str(i + 1), 14, s.white, px, py)
 
-            # 2. Draw all racers
             draw_racers(screen, racers, track)
-
-            # 3. Leaderboard
             draw_leaderboard(screen, racers, checkpoint_clusters, current_turn)
 
         # ==================== GAMEOVER ====================
-        elif game_state == "GAMEOVER":
-            # Draw racers in final positions
+        elif gsm == GameState.GAMEOVER:
             draw_racers(screen, racers, track)
 
             overlay = pygame.Surface((s.screen_width, s.screen_height))
