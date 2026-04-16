@@ -1,59 +1,98 @@
+"""
+game_engine.py
+--------------
+Discrete grid physics.
+
+Commit 3: now weather-aware.
+  set_weather(mode) updates the three physics params without rebuilding
+  the engine — called from main.py just before RUNNING starts.
+
+Weather effects on get_legal_moves():
+  Sunny  — normal (accel ±2, max speed 5, free braking)
+  Rainy  — reduced grip (accel ±1, max speed 3)
+  Snowy  — momentum carry: normal acceleration but braking against the
+            current velocity direction is limited to 1 per axis, so the
+            car can't scrub speed as quickly (wheel-spin / sliding).
+"""
+
+import settings as s
 from car import CarState
-import math
+
 
 class PhysicsEngine:
-    def __init__(self, track_grid):
+
+    def __init__(self, track_grid, weather: str = "Sunny"):
         self.track = track_grid
-        self.rows = len(track_grid)
-        self.cols = len(track_grid[0])
-        self.lethal_tiles = {0} #0 is wall
+        self.rows  = len(track_grid)
+        self.cols  = len(track_grid[0])
+        self.lethal_tiles = {0}
+        self.set_weather(weather)
 
-    def get_legal_moves(self, current_state):
-        next_states = []
-        acceleration_options = [-2, -1, 0, 1, 2]  # Increased from ±1 for better maneuverability
+    # ── Weather ───────────────────────────────────────────────────────────────
 
-        for ax in acceleration_options:
-            for ay in acceleration_options:
+    def set_weather(self, weather: str) -> None:
+        """Hot-swap weather without rebuilding the engine instance."""
+        self.weather = weather
+        params = s.WEATHER_PHYSICS.get(weather, s.WEATHER_PHYSICS["Sunny"])
+        self.max_speed   = params["max_speed"]
+        self.accel_limit = params["accel_limit"]
+        self.brake_limit = params["brake_limit"]
+
+    # ── Legal move generation ─────────────────────────────────────────────────
+
+    def get_legal_moves(self, current_state: CarState) -> list:
+        moves = []
+        accel_range = range(-self.accel_limit, self.accel_limit + 1)
+
+        for ax in accel_range:
+            for ay in accel_range:
+
+                # Snowy: cap hard-braking against current velocity
+                if self.weather == "Snowy":
+                    # ax is braking if it opposes vx
+                    if current_state.vx != 0 and ax != 0:
+                        if ax * current_state.vx < 0 and abs(ax) > self.brake_limit:
+                            continue
+                    if current_state.vy != 0 and ay != 0:
+                        if ay * current_state.vy < 0 and abs(ay) > self.brake_limit:
+                            continue
+
                 new_vx = current_state.vx + ax
                 new_vy = current_state.vy + ay
-                
-                #cap max speed to prevent glitches
-                if new_vx > 5: new_vx = 5
-                if new_vx < -5: new_vx = -5
-                if new_vy > 5: new_vy = 5
-                if new_vy < -5: new_vy = -5
+
+                # Velocity cap
+                new_vx = max(-self.max_speed, min(self.max_speed, new_vx))
+                new_vy = max(-self.max_speed, min(self.max_speed, new_vy))
 
                 new_x = current_state.x + new_vx
                 new_y = current_state.y + new_vy
-                
-                #check full path, not just endpoint
-                if self._check_path(current_state.x, current_state.y, new_x, new_y):
-                    new_state = CarState(new_x, new_y, new_vx, new_vy)
-                    next_states.append(new_state)
-        return next_states
 
-    def _check_path(self, x1, y1, x2, y2):
-        #bresenham's line algorithm to stop tunneling
-        if not self._is_safe(x2, y2): return False
+                if self._check_path(current_state.x, current_state.y,
+                                    new_x, new_y):
+                    moves.append(CarState(new_x, new_y, new_vx, new_vy))
 
-        dx = abs(x2 - x1)
-        dy = abs(y2 - y1)
-        steps = max(dx, dy) 
-        
-        if steps == 0: return True
+        return moves
 
+    # ── Path / safety ─────────────────────────────────────────────────────────
+
+    def _check_path(self, x1, y1, x2, y2) -> bool:
+        """Bresenham line — prevents tunnelling through walls."""
+        if not self._is_safe(x2, y2):
+            return False
+        dx    = abs(x2 - x1)
+        dy    = abs(y2 - y1)
+        steps = max(dx, dy)
+        if steps == 0:
+            return True
         for i in range(1, steps + 1):
-            t = i / steps
+            t  = i / steps
             xt = int(x1 + t * (x2 - x1))
             yt = int(y1 + t * (y2 - y1))
-            
             if not self._is_safe(xt, yt):
-                return False 
+                return False
         return True
 
-    def _is_safe(self, x, y):
-        #bounds check
-        if x < 0 or x >= self.cols or y < 0 or y >= self.rows: return False
-        #wall check
-        if self.track[y][x] in self.lethal_tiles: return False
-        return True
+    def _is_safe(self, x, y) -> bool:
+        if x < 0 or x >= self.cols or y < 0 or y >= self.rows:
+            return False
+        return self.track[y][x] not in self.lethal_tiles
