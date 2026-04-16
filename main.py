@@ -95,19 +95,29 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
     x, y = racer.state.x, racer.state.y
     if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
         return
-    tile  = track.grid[y][x]
-    nxt   = len(racer.checkpoints_cleared)
+    tile = track.grid[y][x]
+    nxt  = len(racer.checkpoints_cleared)
+
+
+    if racer.grace_turns_remaining > 0:
+        racer.grace_turns_remaining -= 1
+
     if tile >= 4 and nxt < len(checkpoint_clusters):
         if (x, y) in checkpoint_clusters[nxt]:
             racer.checkpoints_cleared.add(nxt)
             print(f"{racer.name} ✓ CP {nxt+1}/{len(checkpoint_clusters)}")
-    if tile == 3 and len(racer.checkpoints_cleared) >= len(checkpoint_clusters):
+
+    # count a finish-line crossing when not in the grace window
+    # This prevents a false lap completion when the player respawns at start_state (which sits on or next to the finish tile).
+    if (tile == 3
+            and len(racer.checkpoints_cleared) >= len(checkpoint_clusters)
+            and racer.grace_turns_remaining == 0):
         racer.laps_completed += 1
         if racer.laps_completed >= racer.total_laps:
             racer.finished = True
             if racer.finish_turn is None:
                 racer.finish_turn = current_turn
-            print(f"{racer.name} 🏁 FINISHED (turn {current_turn})")
+            print(f"{racer.name} FINISHED (turn {current_turn})")
         else:
             racer.checkpoints_cleared.clear()
 
@@ -290,14 +300,15 @@ def setup_race(engine, track, start_state, screen):
 
 def reset_racers(racers, start_state):
     for r in racers:
-        r.state               = start_state
-        r.finished            = False
-        r.crashed             = False
-        r.checkpoints_cleared = set()
-        r.laps_completed      = 0
-        r.finish_turn         = None
-        r.path_index          = 0
-        r.ghost_positions     = []
+        r.state                  = start_state
+        r.finished               = False
+        r.crashed                = False
+        r.checkpoints_cleared    = set()
+        r.laps_completed         = 0
+        r.finish_turn            = None
+        r.path_index             = 0
+        r.ghost_positions        = []
+        r.grace_turns_remaining  = 0    # Commit 1
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
 
@@ -599,7 +610,7 @@ def main():
             gsm.transition(GameState.AI_PREVIEW)
 
         # ═════════════════════════════════════════════════════════════════════
-        # AI_PREVIEW  (Commit 8)
+        # AI_PREVIEW 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.AI_PREVIEW:
 
@@ -686,7 +697,7 @@ def main():
                       s.screen_width - 80, s.screen_height - 20, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # PRE_RACE  (Commit 9 — replaces READY)
+        # PRE_RACE  
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.PRE_RACE:
             draw_overlay(screen, alpha=190, color=(0, 0, 10))
@@ -752,7 +763,7 @@ def main():
                       s.screen_width // 2, s.screen_height - 30, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # RUNNING  (Commits 10-13 — lives system + HUD overhaul)
+        # RUNNING 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.RUNNING:
             player_racer = racers[0]
@@ -797,15 +808,22 @@ def main():
                                                new_x, new_y)
                                 and engine._is_safe(new_x, new_y)):
                             new_state = CarState(new_x, new_y, new_vx, new_vy)
-                        else:
-                            # ── LIVES SYSTEM (Commit 10) ────────────────────
+                       else:
+                            # Lives system — preserve lap progress on respawn
                             racer.lives -= 1
                             print(f"{racer.name} crashed! {racer.lives} lives left.")
                             if racer.lives <= 0:
                                 racer.crashed = True
                             else:
-                                racer.state          = start_state
-                                respawn_flash_until  = time.time() + 0.6
+                                # Belt-and-suspenders: explicitly save and restore so
+                                # future refactors can't silently discard the state.
+                                saved_laps = racer.laps_completed
+                                saved_cps  = set(racer.checkpoints_cleared)
+                                racer.state                 = start_state
+                                racer.laps_completed        = saved_laps
+                                racer.checkpoints_cleared   = saved_cps
+                                racer.grace_turns_remaining = 3 
+                                respawn_flash_until = time.time() + 0.6
                                 player_ax = 0
                                 player_ay = 0
                             continue
@@ -849,7 +867,7 @@ def main():
 
             # ── Drawing ───────────────────────────────────────────────────────
 
-            # Ghost car (Commit 16)
+            # Ghost car 
             if ghost_car and track:
                 draw_ghost_car(screen, ghost_car, current_turn, track.TILE_SIZE)
 
@@ -879,11 +897,11 @@ def main():
 
             # ── HUD ───────────────────────────────────────────────────────────
 
-            # Top-left: position badge (Commit 12)
+            # Top-left: position badge 
             place = get_player_place(player_racer, racers, checkpoint_clusters)
             draw_place_badge(screen, place, 45, 30)
 
-            # Top-right: speed + lives (Commit 11 + 13)
+            # Top-right: speed + lives
             draw_panel(screen, s.screen_width - 90, 30, 160, 56, alpha=160)
             draw_speed_gauge(screen,
                              player_racer.state.vx, player_racer.state.vy,
@@ -896,7 +914,7 @@ def main():
             draw_leaderboard(screen, racers, checkpoint_clusters, current_turn)
 
         # ═════════════════════════════════════════════════════════════════════
-        # WIN  (Commit 17)
+        # WIN  ( 17)
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.WIN:
             draw_overlay(screen, alpha=175, color=(0, 10, 0))
@@ -937,7 +955,7 @@ def main():
                           s.screen_width // 2, s.screen_height // 2 + 130)
 
         # ═════════════════════════════════════════════════════════════════════
-        # LOSE  (Commit 18)
+        # LOSE
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.LOSE:
             draw_overlay(screen, alpha=185, color=(15, 0, 0))
