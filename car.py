@@ -1,63 +1,67 @@
+import settings as s
+
+
 class CarState:
     """
-    Stores the snapshot of a car at a specific moment (Discrete State).
-    Used for the A* Algorithm to remember where it has been.
+    Immutable snapshot of a car at one moment in time.
+    Used by A* as the search node — must be hashable and comparable.
     """
     def __init__(self, x, y, vx, vy):
-        self.x = x
-        self.y = y
-        self.vx = vx
-        self.vy = vy
+        self.x  = x;  self.y  = y
+        self.vx = vx; self.vy = vy
 
-    #tells Python how to check if two states are the same
     def __eq__(self, other):
-        return (self.x, self.y, self.vx, self.vy) == (other.x, other.y, other.vx, other.vy)
+        return (self.x, self.y, self.vx, self.vy) == \
+               (other.x, other.y, other.vx, other.vy)
 
-    #allows object to be put into a Set or Dictionary
     def __hash__(self):
         return hash((self.x, self.y, self.vx, self.vy))
 
-    #helper for debugging
     def __repr__(self):
         return f"Car(x={self.x}, y={self.y}, vx={self.vx}, vy={self.vy})"
-    
 
     def __lt__(self, other):
-        return False  # don't care which car comes first if scores are equal
+        return False   # tie-break in PriorityQueue — order doesn't matter
 
-
-# --- RACER CLASS ---
-# Wraps a CarState with racing-specific info.
-# CarState stays immutable for A*, Racer handles the game logic.
 
 class Racer:
     """
-    A car in a race. Wraps CarState and adds:
-    - Color and name (for drawing)
-    - Type (PLAYER, CPU_EASY, CPU_MEDIUM, CPU_HARD)
-    - Checkpoint progress tracking
-    - Race status (finished, crashed)
+    A car competing in the race.
+
+    Wraps CarState with:
+    - Display info  (color, name, type)
+    - Race progress (checkpoints, laps, finish)
+    - Lives system  (Commit 10) — only meaningful for PLAYER type
+    - Ghost recording buffer (Commit 14) — player records each position
+    - CPU Hard pre-computed path + solver stats
     """
-    def __init__(self, state, color, racer_type, name):
-        self.state = state              #current CarState
-        self.color = color
-        self.type = racer_type          # "PLAYER", "CPU_EASY", "CPU_MEDIUM", "CPU_HARD"
-        self.name = name
 
-        # Race progress
-        self.checkpoints_cleared = set()  #indices of checkpoint clusters hit
-        self.finished = False
-        self.crashed = False
+    def __init__(self, state: CarState, color, racer_type: str, name: str):
+        self.state      = state
+        self.color      = color
+        self.type       = racer_type   # "PLAYER" | "CPU_EASY" | "CPU_MEDIUM" | "CPU_HARD"
+        self.name       = name
 
-        # Lap Tracking
-        self.laps_completed = 0
-        self.total_laps = 1
+        # ── Race progress ────────────────────────────────────────────────────
+        self.checkpoints_cleared: set  = set()
+        self.finished: bool  = False
+        self.crashed:  bool  = False
+        self.finish_turn: int | None = None
 
-        # Timing
-        self.finish_turn = None  # turn number when racer finished
+        # ── Lap tracking ─────────────────────────────────────────────────────
+        self.laps_completed: int = 0
+        self.total_laps:     int = 1
 
-        # CPU_HARD pre-computed path
-        self.precomputed_path = []
-        self.path_index = 0
-        self.explored_states = []
-        self.solve_time = 0
+        # ── Lives (Commit 10) — 3 for player, irrelevant for CPUs ────────────
+        self.lives:     int = s.PLAYER_LIVES if racer_type == "PLAYER" else 1
+        self.max_lives: int = s.PLAYER_LIVES if racer_type == "PLAYER" else 1
+
+        # ── Ghost recording (Commit 14) ───────────────────────────────────────
+        # Player's position is appended here every turn during RUNNING.
+        self.ghost_positions: list[tuple[int, int]] = []
+
+        # ── CPU Hard pre-computed path ────────────────────────────────────────
+        self.precomputed_path: list[CarState] = []
+        self.path_index:       int            = 0
+        self.explored_states:  list[CarState] = []
+        self.solve_time:       float          = 0.0
