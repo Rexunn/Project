@@ -292,3 +292,68 @@ def draw_obstacles(screen: pygame.Surface,
                              (mid, tile_size - 5), (tile_size - 5, mid), 1)
 
         screen.blit(surf, (px, py))
+
+# ── GA setup screen ─────────────────────────────────────────────────
+
+def draw_ga_setup(screen: pygame.Surface,
+                  waypoints: int,
+                  sharpness_idx: int) -> None:
+    """
+    Full-screen parameter selection UI rendered inside the GA_SETUP state.
+
+    Controls (handled in main.py event loop):
+      Left / Right  — adjust waypoint count (4-10)
+      Up / Down     — cycle sharpness preset
+      SPACE         — confirm and begin generation
+      ESC / Back    — return to BOOT_MENU
+    """
+    cx = s.screen_width  // 2
+    cy = s.screen_height // 2
+
+    draw_text(screen, "TRACK GENERATION SETTINGS", 40, s.yellow, cx, 80)
+    pygame.draw.line(screen, (60, 60, 80),
+                     (160, 122), (s.screen_width - 160, 122), 1)
+
+    # ── Waypoint count ────────────────────────────────────────────────────────
+    draw_text(screen, "NUMBER OF TURNS", 18, (160, 160, 180), cx, cy - 100)
+
+    draw_text(screen, "<",  26, s.cyan,  cx - 80, cy - 65)
+    draw_text(screen, ">",  26, s.cyan,  cx + 80, cy - 65)
+    draw_panel(screen, cx, cy - 65, 76, 40, color=(30, 30, 50), alpha=210)
+    draw_text(screen, str(waypoints), 30, s.white, cx, cy - 65)
+    draw_text(screen, "4 = simple loop    10 = complex circuit",
+              14, (110, 110, 130), cx, cy - 36, bold=False)
+
+    # ── Sharpness presets ─────────────────────────────────────────────────────
+    draw_text(screen, "TURN SHARPNESS", 18, (160, 160, 180), cx, cy + 14)
+
+    descriptions = {
+        "Gentle": "Wide sweeping curves — easier to navigate.",
+        "Normal": "Balanced mix of straights and bends.",
+        "Sharp":  "Tight hairpins — demanding but exciting.",
+    }
+
+    for i, name in enumerate(s.GA_SHARPNESS_NAMES):
+        iy     = cy + 50 + i * 46
+        active = (i == sharpness_idx)
+        pcol   = (40, 40, 60) if active else (14, 14, 24)
+        draw_panel(screen, cx, iy, 280, 38, color=pcol, alpha=210)
+        if active:
+            pygame.draw.rect(screen, s.yellow,
+                             (cx - 140, iy - 19, 280, 38), 1)
+        color  = s.yellow if active else (150, 150, 160)
+        prefix = "> " if active else "  "
+        draw_text(screen, prefix + name, 22, color, cx, iy)
+
+    # Description for the currently selected preset
+    sel_name = s.GA_SHARPNESS_NAMES[sharpness_idx]
+    draw_text(screen, descriptions.get(sel_name, ""),
+              14, (130, 130, 150), cx, cy + 198, bold=False)
+
+    # ── Key hints ─────────────────────────────────────────────────────────────
+    pygame.draw.line(screen, (60, 60, 80),
+                     (160, s.screen_height - 62),
+                     (s.screen_width - 160, s.screen_height - 62), 1)
+    draw_text(screen,
+              "< >  Adjust turns    Up/Dn  Sharpness    SPACE  Generate    ESC  Back",
+              13, (90, 90, 110), cx, s.screen_height - 36, bold=False)

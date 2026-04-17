@@ -8,30 +8,28 @@ main.py uses gsm.transition() — invalid jumps get logged, never silently corru
 
 class GameState:
     # ── Active states ─────────────────────────────────────────────────────────
-    BOOT_MENU  = "BOOT_MENU"    # Commit 3  — new multi-option title screen
-    MAP_SELECT = "MAP_SELECT"   # Commit 4  — saved map browser
-    GENERATING = "GENERATING"   # unchanged — GA evolution
-    LOADING    = "LOADING"      # unchanged — race setup (now → AI_PREVIEW)
-    AI_PREVIEW = "AI_PREVIEW"   # Commit 8  — animated A* visualisation
-    PRE_RACE   = "PRE_RACE"     # Commit 9  — controls overlay, replaces READY
-    RUNNING    = "RUNNING"      # unchanged — active race
-    WIN        = "WIN"          # Commit 17 — player finished
-    LOSE       = "LOSE"         # Commit 18 — player ran out of lives / time
+    BOOT_MENU  = "BOOT_MENU"
+    MAP_SELECT = "MAP_SELECT"
+    GA_SETUP   = "GA_SETUP"    # Commit 7 — waypoint / sharpness selector
+    GENERATING = "GENERATING"
+    LOADING    = "LOADING"
+    AI_PREVIEW = "AI_PREVIEW"
+    PRE_RACE   = "PRE_RACE"
+    RUNNING    = "RUNNING"
+    WIN        = "WIN"
+    LOSE       = "LOSE"
 
-    # ── Legacy aliases (kept so old save/load code doesn't break) ─────────────
-    MENU     = "BOOT_MENU"   # redirect old MENU references
-    READY    = "PRE_RACE"    # redirect old READY references
-    GAMEOVER = "WIN"         # redirect old GAMEOVER references
+    # ── Legacy aliases ─────────────────────────────────────────────────────────
+    MENU     = "BOOT_MENU"
+    READY    = "PRE_RACE"
+    GAMEOVER = "WIN"
 
 
-# ---------------------------------------------------------------------------
-# Every legal edge in the state graph.
-# PRE_RACE ← WIN/LOSE is the "restart same map" path.
-# ---------------------------------------------------------------------------
 _VALID_TRANSITIONS: dict[str, set[str]] = {
-    GameState.BOOT_MENU:  {GameState.MAP_SELECT, GameState.GENERATING,
-                           GameState.LOADING},
+    GameState.BOOT_MENU:  {GameState.MAP_SELECT, GameState.GA_SETUP,
+                           GameState.GENERATING, GameState.LOADING},
     GameState.MAP_SELECT: {GameState.LOADING, GameState.BOOT_MENU},
+    GameState.GA_SETUP:   {GameState.GENERATING, GameState.BOOT_MENU},   # Commit 7
     GameState.GENERATING: {GameState.LOADING, GameState.BOOT_MENU},
     GameState.LOADING:    {GameState.AI_PREVIEW, GameState.BOOT_MENU},
     GameState.AI_PREVIEW: {GameState.PRE_RACE},
@@ -52,8 +50,6 @@ class GameStateManager:
         self._previous: str | None = None
         self._history:  list[str]  = []
 
-    # ── Core ──────────────────────────────────────────────────────────────────
-
     @property
     def state(self) -> str:
         return self._state
@@ -68,11 +64,8 @@ class GameStateManager:
         return True
 
     def force_transition(self, new_state: str) -> None:
-        """Bypass table — for error recovery only."""
         print(f"[GSM FORCE] {self._state!r} -> {new_state!r}")
         self._do(new_state)
-
-    # ── Helpers ───────────────────────────────────────────────────────────────
 
     def is_in(self, *states: str) -> bool:
         return self._state in states
@@ -85,8 +78,6 @@ class GameStateManager:
     def history(self) -> list[str]:
         return list(self._history)
 
-    # ── Dunder ────────────────────────────────────────────────────────────────
-
     def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
             return self._state == other
@@ -96,8 +87,6 @@ class GameStateManager:
 
     def __str__(self)  -> str: return self._state
     def __repr__(self) -> str: return f"GameStateManager({self._state!r})"
-
-    # ── Internal ──────────────────────────────────────────────────────────────
 
     def _do(self, new_state: str) -> None:
         print(f"[GSM] {self._state!r} -> {new_state!r}")
