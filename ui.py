@@ -233,3 +233,15 @@ def draw_boot_background(screen: pygame.Surface) -> None:
         g = int(8  +  8 * ratio)
         b = int(20 + 20 * ratio)
         pygame.draw.line(screen, (r, g, b), (0, row), (s.screen_width, row))
+
+# ── Weather badge ─────────────────────────────────────────────────
+def draw_weather_badge(screen: pygame.Surface, weather: str) -> None:
+    """
+    Small pill shown in the top-centre of the RUNNING and PRE_RACE screens.
+    Colour-codes the current weather mode so it's always visible at a glance.
+    """
+    colour = s.WEATHER_COLOURS.get(weather, s.white)
+    label  = s.WEATHER_LABELS.get(weather, weather)
+    draw_panel(screen, s.screen_width // 2, 28, 120, 26, alpha=155)
+    draw_text(screen, label, 14, colour,
+              s.screen_width // 2, 28, bold=False)

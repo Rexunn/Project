@@ -808,7 +808,7 @@ def main():
                                                new_x, new_y)
                                 and engine._is_safe(new_x, new_y)):
                             new_state = CarState(new_x, new_y, new_vx, new_vy)
-                       else:
+                        else:
                             # Lives system — preserve lap progress on respawn
                             racer.lives -= 1
                             print(f"{racer.name} crashed! {racer.lives} lives left.")
