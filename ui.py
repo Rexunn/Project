@@ -245,3 +245,50 @@ def draw_weather_badge(screen: pygame.Surface, weather: str) -> None:
     draw_panel(screen, s.screen_width // 2, 28, 120, 26, alpha=155)
     draw_text(screen, label, 14, colour,
               s.screen_width // 2, 28, bold=False)
+
+# ── obstacle rendering ──────────────────────────────────────────────
+def draw_obstacles(screen: pygame.Surface,
+                   obstacles: list,
+                   tile_size: int) -> None:
+    """
+    Render all active obstacles on the track surface.
+
+    OilSpill — dark iridescent ellipse with colour-sheen rings.
+    Pothole  — rough dark cavity with interior crack lines.
+
+    Both use SRCALPHA surfaces so they composite cleanly over any track theme.
+    """
+    for obs in obstacles:
+        if not obs.active:
+            continue
+        px   = obs.x * tile_size
+        py   = obs.y * tile_size
+        half = tile_size // 2
+
+        surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
+
+        if obs.type == "OilSpill":
+            # Dark base puddle
+            pygame.draw.ellipse(surf, (15, 10, 25, 215),
+                                (2, 4, tile_size - 4, tile_size - 7))
+            # Iridescent sheen rings
+            for i, col in enumerate(
+                    [(90, 10, 120, 110), (10, 80, 110, 100), (80, 90, 10, 80)]):
+                pygame.draw.ellipse(surf, col,
+                                    (3 + i, 5 + i,
+                                     tile_size - 6 - i * 2,
+                                     tile_size - 9 - i * 2), 1)
+
+        elif obs.type == "Pothole":
+            # Dark rough cavity
+            pygame.draw.rect(surf, (28, 16, 6, 245),
+                             (3, 3, tile_size - 6, tile_size - 6))
+            pygame.draw.rect(surf, (70, 44, 18, 190),
+                             (3, 3, tile_size - 6, tile_size - 6), 1)
+            # Interior crack lines for texture
+            mid = tile_size // 2
+            pygame.draw.line(surf, (55, 34, 14, 160), (5, mid), (mid, 5), 1)
+            pygame.draw.line(surf, (55, 34, 14, 160),
+                             (mid, tile_size - 5), (tile_size - 5, mid), 1)
+
+        screen.blit(surf, (px, py))
