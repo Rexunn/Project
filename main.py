@@ -517,8 +517,11 @@ def main():
                 # ── AI_PREVIEW ─────────────────────────────────────────────────
                 elif gsm == GameState.AI_PREVIEW:
                     if event.key == pygame.K_SPACE:
-                        preview_phase     = "wait"
-                        preview_done_time = time.time()
+                         # Skip fade: jump to hold phase
+                        preview_alpha     = 255.0
+                        preview_fade_done = True
+                        if preview_done_time is None:
+                            preview_done_time = time.time()
 
                 # ── PRE_RACE ───────────────────────────────────────────────────
                 elif gsm == GameState.PRE_RACE:
