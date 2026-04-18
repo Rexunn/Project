@@ -142,6 +142,36 @@ class Chromosome:
                         self.grid[cy][cx] = tile_value
                     elif self.grid[cy][cx] == 0:
                         break
+    def _curvature_score(self, idx: int) -> float:
+        """
+        Curvature score for waypoint[idx].
+
+        Computed as (1 - dot(incoming_tangent, outgoing_tangent)), where
+        both tangent vectors are unit-length.
+
+        Interpretation
+        --------------
+        0.0  → perfectly straight section  (ideal checkpoint location)
+        1.0  → 90-degree corner
+        2.0  → complete U-turn / reversal   (worst possible location)
+
+        A threshold of ~1.2 rejects anything tighter than ~115 degrees,
+        which matches the kinds of hairpin apexes that cause ambiguous
+        forward vectors in the wrong-way dot-product check.
+        """
+        prev = self.waypoints[(idx - 1) % len(self.waypoints)]
+        curr = self.waypoints[idx]
+        nxt  = self.waypoints[(idx + 1) % len(self.waypoints)]
+
+        # Incoming and outgoing direction vectors
+        dx1, dy1 = curr[0] - prev[0], curr[1] - prev[1]
+        dx2, dy2 = nxt[0]  - curr[0], nxt[1]  - curr[1]
+
+        len1 = max(0.001, math.hypot(dx1, dy1))
+        len2 = max(0.001, math.hypot(dx2, dy2))
+
+        dot = (dx1 / len1) * (dx2 / len2) + (dy1 / len1) * (dy2 / len2)
+        return 1.0 - dot   # range [0, 2], lower = straighter
 
 
 # ─────────────────────────────────────────────────────────────────────────────
