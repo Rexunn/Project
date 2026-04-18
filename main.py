@@ -1,11 +1,17 @@
 """
+main
+-------
+Full game entry point. State machine driven by GameStateManager.
+
 State flow:
-  BOOT_MENU -> MAP_SELECT | GENERATING | LOADING
-  LOADING   -> AI_PREVIEW
-  AI_PREVIEW-> PRE_RACE
-  PRE_RACE  -> RUNNING
-  RUNNING   -> WIN | LOSE
-  WIN / LOSE-> PRE_RACE (restart) | GENERATING | BOOT_MENU
+  BOOT_MENU  -> MAP_SELECT | GA_SETUP | LOADING
+  GA_SETUP   -> GENERATING | BOOT_MENU
+  GENERATING -> LOADING | BOOT_MENU
+  LOADING    -> AI_PREVIEW
+  AI_PREVIEW -> PRE_RACE
+  PRE_RACE   -> RUNNING
+  RUNNING    -> WIN | LOSE
+  WIN / LOSE -> PRE_RACE | GENERATING | BOOT_MENU
 """
 
 import math
@@ -21,14 +27,17 @@ from ga import GeneticAlgorithm
 from game_engine import PhysicsEngine
 from game_state_manager import GameState, GameStateManager
 from ghost_recorder import GhostCar, GhostRecorder, load_ghost, save_ghost, track_id
+from obstacles import Obstacle, generate_obstacles          # Commit 6
 from solver import AStarSolver
 from track import Track
 from ui import (
     draw_boot_background,
+    draw_ga_setup,                                          # Commit 7
     draw_hint_row,
     draw_leaderboard,
     draw_lives,
     draw_menu_list,
+    draw_obstacles,                                         # Commit 6
     draw_overlay,
     draw_panel,
     draw_place_badge,
@@ -36,6 +45,7 @@ from ui import (
     draw_speed_gauge,
     draw_text,
     draw_timer_bar,
+    draw_weather_badge,                                     # Commit 4
 )
 
 
@@ -88,7 +98,7 @@ def get_cpu_target(racer, checkpoint_clusters, track):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Race-progress checker
+# Race-progress checker  (Commit 1: grace-turn guard)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
@@ -98,17 +108,16 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
     tile = track.grid[y][x]
     nxt  = len(racer.checkpoints_cleared)
 
-
+    # Commit 1: tick down grace counter each turn
     if racer.grace_turns_remaining > 0:
         racer.grace_turns_remaining -= 1
 
     if tile >= 4 and nxt < len(checkpoint_clusters):
         if (x, y) in checkpoint_clusters[nxt]:
             racer.checkpoints_cleared.add(nxt)
-            print(f"{racer.name} ✓ CP {nxt+1}/{len(checkpoint_clusters)}")
+            print(f"{racer.name} CP {nxt+1}/{len(checkpoint_clusters)}")
 
-    # count a finish-line crossing when not in the grace window
-    # This prevents a false lap completion when the player respawns at start_state (which sits on or next to the finish tile).
+    # Commit 1 FIX: skip finish detection during respawn grace window
     if (tile == 3
             and len(racer.checkpoints_cleared) >= len(checkpoint_clusters)
             and racer.grace_turns_remaining == 0):
@@ -151,7 +160,6 @@ def draw_racers(screen, racers, track):
 
 
 def draw_ghost_car(screen, ghost_car: GhostCar, current_turn: int, tile_size: int):
-    """Render the replay ghost as a semi-transparent white circle."""
     pos = ghost_car.get_position(current_turn)
     if pos is None:
         return
@@ -160,10 +168,8 @@ def draw_ghost_car(screen, ghost_car: GhostCar, current_turn: int, tile_size: in
     py = gy * tile_size + tile_size // 2
     surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
     pygame.draw.circle(surf, (255, 255, 255, 85),
-                       (tile_size // 2, tile_size // 2),
-                       tile_size // 2 - 1)
+                       (tile_size // 2, tile_size // 2), tile_size // 2 - 1)
     screen.blit(surf, (gx * tile_size, gy * tile_size))
-    # Small "G" label
     font = pygame.font.SysFont("arial", 9, bold=True)
     lbl  = font.render("G", True, (200, 200, 200))
     screen.blit(lbl, (px - lbl.get_width() // 2, py - lbl.get_height() // 2))
@@ -197,12 +203,10 @@ def draw_checkpoint_numbers(screen, checkpoint_clusters, tile_size):
 
 
 def get_player_place(player_racer, racers, checkpoint_clusters) -> int:
-    """Return the player's current race position (1-indexed)."""
     total_cp = len(checkpoint_clusters)
-
     def score(r):
-        if r.crashed:   return (-1, 0, 0)
-        if r.finished:  return (100, -(r.finish_turn or 9999), 0)
+        if r.crashed:  return (-1, 0, 0)
+        if r.finished: return (100, -(r.finish_turn or 9999), 0)
         cp   = len(r.checkpoints_cleared)
         dist = float("inf")
         if cp < total_cp and checkpoint_clusters[cp]:
@@ -211,7 +215,6 @@ def get_player_place(player_racer, racers, checkpoint_clusters) -> int:
             cy_  = sum(ty for _, ty in cl) / len(cl)
             dist = abs(r.state.x - cx_) + abs(r.state.y - cy_)
         return (1, cp, -dist)
-
     ranked = sorted(racers, key=score, reverse=True)
     for i, r in enumerate(ranked):
         if r is player_racer:
@@ -220,15 +223,10 @@ def get_player_place(player_racer, racers, checkpoint_clusters) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Race setup helper (called in LOADING)
+# Race setup helper
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def setup_race(engine, track, start_state, screen):
-    """
-    Runs the full race setup: extract checkpoints, create racers, run A* + BFS.
-    Displays loading progress between steps.
-    Returns (racers, checkpoint_clusters, race_stats, preview_nodes, preview_path).
-    """
     hint = random.choice(s.LOADING_HINTS)
 
     def show(msg):
@@ -244,7 +242,6 @@ def setup_race(engine, track, start_state, screen):
         pygame.display.flip()
         pygame.event.pump()
 
-    # ── Step 1: checkpoints ───────────────────────────────────────────────────
     show("Extracting checkpoints...")
     solver = AStarSolver(engine)
     checkpoint_clusters = []
@@ -261,7 +258,6 @@ def setup_race(engine, track, start_state, screen):
         cp_val += 1
     print(f"Checkpoints: {len(checkpoint_clusters)}")
 
-    # ── Step 2: racers ────────────────────────────────────────────────────────
     show("Setting up racers...")
     player   = Racer(start_state, s.racer_colours["PLAYER"],     "PLAYER",     "You")
     cpu_easy = Racer(start_state, s.racer_colours["CPU_EASY"],   "CPU_EASY",   "CPU Easy")
@@ -269,16 +265,13 @@ def setup_race(engine, track, start_state, screen):
     cpu_hard = Racer(start_state, s.racer_colours["CPU_HARD"],   "CPU_HARD",   "CPU Hard")
     racers   = [player, cpu_easy, cpu_med, cpu_hard]
 
-    # ── Step 3: A* ────────────────────────────────────────────────────────────
     show("Computing A* path (this takes a moment)...")
-    hard_path, all_explored, astar_time = solver.solve(
-        start_state, checkpoint_clusters)
+    hard_path, all_explored, astar_time = solver.solve(start_state, checkpoint_clusters)
     if hard_path:
         cpu_hard.precomputed_path = hard_path
         cpu_hard.explored_states  = all_explored
         cpu_hard.solve_time       = astar_time
 
-    # ── Step 4: BFS comparison ────────────────────────────────────────────────
     show("Running BFS for comparison...")
     _, bfs_explored, bfs_time = solver.solve(
         start_state, checkpoint_clusters, use_bfs=True)
@@ -289,26 +282,25 @@ def setup_race(engine, track, start_state, screen):
         "bfs_time":    bfs_time,
         "bfs_nodes":   len(bfs_explored),
     }
-
     show("Done!")
     return racers, checkpoint_clusters, race_stats, all_explored, hard_path
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Racer reset helper (restart without re-running solver)
+# Racer reset helper  (Commit 1: resets grace_turns_remaining)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def reset_racers(racers, start_state):
     for r in racers:
-        r.state                  = start_state
-        r.finished               = False
-        r.crashed                = False
-        r.checkpoints_cleared    = set()
-        r.laps_completed         = 0
-        r.finish_turn            = None
-        r.path_index             = 0
-        r.ghost_positions        = []
-        r.grace_turns_remaining  = 0    # Commit 1
+        r.state                 = start_state
+        r.finished              = False
+        r.crashed               = False
+        r.checkpoints_cleared   = set()
+        r.laps_completed        = 0
+        r.finish_turn           = None
+        r.path_index            = 0
+        r.ghost_positions       = []
+        r.grace_turns_remaining = 0    # Commit 1
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
 
@@ -321,14 +313,14 @@ def main():
     pygame.init()
     screen = pygame.display.set_mode((s.screen_width, s.screen_height))
     pygame.display.set_caption("The RaceTrack Game")
-    clock = pygame.time.Clock()
+    clock  = pygame.time.Clock()
 
     gsm = GameStateManager(GameState.BOOT_MENU)
 
-    # ── Assets (loaded on demand) ─────────────────────────────────────────────
-    track:       Track       | None = None
+    # ── Assets ────────────────────────────────────────────────────────────────
+    track:       Track         | None = None
     engine:      PhysicsEngine | None = None
-    start_state: CarState           = CarState(5, 5, 0, 0)
+    start_state: CarState             = CarState(5, 5, 0, 0)
 
     # ── Boot menu ─────────────────────────────────────────────────────────────
     MENU_OPTIONS = ["Default Track", "Saved Maps", "Generate New Map"]
@@ -338,19 +330,19 @@ def main():
     saved_maps: list[str] = []
     map_idx               = 0
 
-    # ── Race data (populated in LOADING, reused on restart) ───────────────────
-    racers:               list[Racer] = []
-    checkpoint_clusters:  list        = []
-    race_stats:           dict        = {}
+    # ── Race data ─────────────────────────────────────────────────────────────
+    racers:              list = []
+    checkpoint_clusters: list = []
+    race_stats:          dict = {}
 
-    # ── AI preview animation ──────────────────────────────────────────────────
-    preview_nodes:      list    = []   # CarState — explored by A*
-    preview_path:       list    = []   # CarState — optimal route
+    # ── AI preview ────────────────────────────────────────────────────────────
+    preview_nodes:      list          = []
+    preview_path:       list          = []
     preview_surf:       pygame.Surface | None = None
-    preview_node_count: int     = 0
-    preview_phase:      str     = "nodes"   # "nodes" | "path" | "wait"
-    preview_path_frame: int     = 0
-    preview_done_time:  float | None = None
+    preview_node_count: int           = 0
+    preview_phase:      str           = "nodes"
+    preview_path_frame: int           = 0
+    preview_done_time:  float | None  = None
 
     # ── In-race state ─────────────────────────────────────────────────────────
     current_turn:    int   = 0
@@ -362,13 +354,24 @@ def main():
     show_dev_stats:  bool  = False
 
     # ── Ghost ─────────────────────────────────────────────────────────────────
-    ghost_recorder: GhostRecorder    = GhostRecorder()
-    ghost_car:      GhostCar | None  = None
-    tid:            str              = ""   # track ID for ghost files
-    new_record:     bool             = False
+    ghost_recorder: GhostRecorder   = GhostRecorder()
+    ghost_car:      GhostCar | None = None
+    tid:            str             = ""
+    new_record:     bool            = False
 
-    # ── Shared respawn flash timer ────────────────────────────────────────────
+    # ── Respawn flash ─────────────────────────────────────────────────────────
     respawn_flash_until: float = 0.0
+
+    # ── Weather (Commit 4) ────────────────────────────────────────────────────
+    current_weather: str = s.DEFAULT_WEATHER
+
+    # ── Obstacles (Commit 6) ──────────────────────────────────────────────────
+    obstacles:       list = []
+    oil_slick_turns: int  = 0    # turns the oil-slick randomisation lasts
+
+    # ── GA generation controls (Commit 7) ────────────────────────────────────
+    ga_waypoints:     int = s.GA_DEFAULT_WAYPOINTS
+    ga_sharpness_idx: int = s.GA_DEFAULT_SHARPNESS
 
     # ═════════════════════════════════════════════════════════════════════════
     # MAIN LOOP
@@ -391,19 +394,19 @@ def main():
                     elif event.key == pygame.K_DOWN:
                         menu_idx = (menu_idx + 1) % len(MENU_OPTIONS)
                     elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
-                        if menu_idx == 0:        # Default Track
+                        if menu_idx == 0:       # Default Track
                             track  = Track(s.DEFAULT_TRACK)
                             engine = PhysicsEngine(track.grid)
                             start_state = _find_start(track)
                             tid = track_id(track.grid)
                             gsm.transition(GameState.LOADING)
-                        elif menu_idx == 1:      # Saved Maps
+                        elif menu_idx == 1:     # Saved Maps
                             saved_maps = sorted(
                                 f for f in os.listdir(".") if f.endswith(".json"))
                             map_idx = 0
                             gsm.transition(GameState.MAP_SELECT)
-                        else:                    # Generate New Map
-                            gsm.transition(GameState.GENERATING)
+                        else:                   # Commit 7: Generate → GA_SETUP first
+                            gsm.transition(GameState.GA_SETUP)
 
                 # ── MAP_SELECT ─────────────────────────────────────────────────
                 elif gsm == GameState.MAP_SELECT:
@@ -421,16 +424,33 @@ def main():
                     elif event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
                         gsm.transition(GameState.BOOT_MENU)
 
+                # ── GA_SETUP (Commit 7) ────────────────────────────────────────
+                elif gsm == GameState.GA_SETUP:
+                    if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                        gsm.transition(GameState.GENERATING)
+                    elif event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+                        gsm.transition(GameState.BOOT_MENU)
+                    elif event.key == pygame.K_LEFT:
+                        ga_waypoints = max(4, ga_waypoints - 1)
+                    elif event.key == pygame.K_RIGHT:
+                        ga_waypoints = min(10, ga_waypoints + 1)
+                    elif event.key == pygame.K_UP:
+                        ga_sharpness_idx = max(0, ga_sharpness_idx - 1)
+                    elif event.key == pygame.K_DOWN:
+                        ga_sharpness_idx = min(
+                            len(s.GA_SHARPNESS_NAMES) - 1, ga_sharpness_idx + 1)
+
                 # ── AI_PREVIEW ─────────────────────────────────────────────────
                 elif gsm == GameState.AI_PREVIEW:
                     if event.key == pygame.K_SPACE:
-                        # Skip straight to wait/done
                         preview_phase     = "wait"
                         preview_done_time = time.time()
 
                 # ── PRE_RACE ───────────────────────────────────────────────────
                 elif gsm == GameState.PRE_RACE:
                     if event.key == pygame.K_SPACE:
+                        # Commit 4: apply weather physics before the race starts
+                        engine.set_weather(current_weather)
                         turn_start_time = time.time()
                         race_start_time = time.time()
                         gsm.transition(GameState.RUNNING)
@@ -439,28 +459,34 @@ def main():
                     elif event.key == pygame.K_s and track:
                         fname = f"custom_track_{int(time.time())}.json"
                         track.save_to_file(fname)
+                    elif event.key == pygame.K_w:             # Commit 4: cycle weather
+                        idx = s.WEATHER_MODES.index(current_weather)
+                        current_weather = s.WEATHER_MODES[(idx + 1) % len(s.WEATHER_MODES)]
 
                 # ── RUNNING ────────────────────────────────────────────────────
+                # Commit 4: clamp input to engine.accel_limit so weather matters
                 elif gsm == GameState.RUNNING and race_phase == "INPUT":
-                    if   event.key == pygame.K_UP:    player_ay = max(-2, player_ay - 1)
-                    elif event.key == pygame.K_DOWN:  player_ay = min( 2, player_ay + 1)
-                    elif event.key == pygame.K_LEFT:  player_ax = max(-2, player_ax - 1)
-                    elif event.key == pygame.K_RIGHT: player_ax = min( 2, player_ax + 1)
+                    lim = engine.accel_limit if engine else 2
+                    if   event.key == pygame.K_UP:    player_ay = max(-lim, player_ay - 1)
+                    elif event.key == pygame.K_DOWN:  player_ay = min( lim, player_ay + 1)
+                    elif event.key == pygame.K_LEFT:  player_ax = max(-lim, player_ax - 1)
+                    elif event.key == pygame.K_RIGHT: player_ax = min( lim, player_ax + 1)
                     elif event.key == pygame.K_SPACE: race_phase = "EXECUTE"
 
                 # ── WIN / LOSE ─────────────────────────────────────────────────
                 elif gsm.is_in(GameState.WIN, GameState.LOSE):
                     if event.key == pygame.K_r:
-                        # Restart same map — reuse existing race data
                         reset_racers(racers, start_state)
                         ghost_recorder.reset()
-                        ghost_car = _load_ghost_car(tid)
-                        current_turn    = 0
-                        race_phase      = "INPUT"
-                        player_ax       = 0
-                        player_ay       = 0
-                        new_record      = False
-                        show_dev_stats  = False
+                        ghost_car        = _load_ghost_car(tid)
+                        obstacles        = generate_obstacles(track.grid)  # Commit 6
+                        oil_slick_turns  = 0                               # Commit 6
+                        current_turn     = 0
+                        race_phase       = "INPUT"
+                        player_ax        = 0
+                        player_ay        = 0
+                        new_record       = False
+                        show_dev_stats   = False
                         gsm.transition(GameState.PRE_RACE)
                     elif event.key == pygame.K_g:
                         gsm.transition(GameState.GENERATING)
@@ -479,19 +505,15 @@ def main():
         # ═════════════════════════════════════════════════════════════════════
         if gsm == GameState.BOOT_MENU:
             draw_overlay(screen, alpha=170, color=(5, 5, 15))
-
             draw_text(screen, "THE RACETRACK GAME", 58, s.white,
                       s.screen_width // 2, 160)
-            draw_text(screen, "A · I   R A C I N G", 22, s.accent,
+            draw_text(screen, "A  I   R A C I N G", 22, s.accent,
                       s.screen_width // 2, 210, bold=False)
-
             pygame.draw.line(screen, (60, 60, 80),
                              (200, 250), (s.screen_width - 200, 250), 1)
-
             draw_menu_list(screen, MENU_OPTIONS, menu_idx,
                            s.screen_width // 2, 310)
-
-            draw_text(screen, "↑ ↓  Navigate   SPACE  Select",
+            draw_text(screen, "Up/Dn  Navigate    SPACE  Select",
                       16, (130, 130, 150),
                       s.screen_width // 2, s.screen_height - 40, bold=False)
 
@@ -502,35 +524,33 @@ def main():
             draw_overlay(screen, alpha=180, color=(5, 5, 15))
             draw_text(screen, "SELECT A SAVED TRACK", 40, s.yellow,
                       s.screen_width // 2, 80)
-
             if saved_maps:
-                # Show up to 8 maps, scroll window around selection
                 vis   = 8
-                start = max(0, min(map_idx - vis // 2,
-                                   len(saved_maps) - vis))
+                start = max(0, min(map_idx - vis // 2, len(saved_maps) - vis))
                 shown = saved_maps[start: start + vis]
                 draw_menu_list(screen, shown, map_idx - start,
                                s.screen_width // 2, 160, item_height=48)
-                draw_text(screen,
-                          f"{map_idx + 1} / {len(saved_maps)}",
+                draw_text(screen, f"{map_idx + 1} / {len(saved_maps)}",
                           16, (130, 130, 150),
-                          s.screen_width // 2, s.screen_height - 70,
-                          bold=False)
+                          s.screen_width // 2, s.screen_height - 70, bold=False)
             else:
                 draw_text(screen, "No saved .json tracks found in this folder.",
-                          24, s.red,
-                          s.screen_width // 2, s.screen_height // 2)
-
-            draw_text(screen,
-                      "↑ ↓  Navigate   SPACE  Load   ESC  Back",
+                          24, s.red, s.screen_width // 2, s.screen_height // 2)
+            draw_text(screen, "Up/Dn  Navigate    SPACE  Load    ESC  Back",
                       16, (130, 130, 150),
                       s.screen_width // 2, s.screen_height - 40, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # GENERATING
+        # GA_SETUP  (Commit 7)
+        # ═════════════════════════════════════════════════════════════════════
+        elif gsm == GameState.GA_SETUP:
+            draw_overlay(screen, alpha=180, color=(5, 5, 15))
+            draw_ga_setup(screen, ga_waypoints, ga_sharpness_idx)
+
+        # ═════════════════════════════════════════════════════════════════════
+        # GENERATING  (Commit 8: passes ga_waypoints + sharpness)
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.GENERATING:
-
             hint_gen = random.choice(s.LOADING_HINTS)
 
             def draw_ga_progress(cur_gen, max_gens, history):
@@ -542,10 +562,8 @@ def main():
                           28, s.white, s.screen_width // 2, 130)
                 if history:
                     gx, gy, gw, gh = 180, 580, 640, 300
-                    pygame.draw.rect(screen, (20, 20, 30),
-                                     (gx, gy - gh, gw, gh))
-                    pygame.draw.rect(screen, (50, 50, 70),
-                                     (gx, gy - gh, gw, gh), 1)
+                    pygame.draw.rect(screen, (20, 20, 30), (gx, gy - gh, gw, gh))
+                    pygame.draw.rect(screen, (50, 50, 70), (gx, gy - gh, gw, gh), 1)
                     max_fit = max(max(history), 1)
                     pts = [(gx + int(i / max(1, len(history) - 1) * gw),
                             gy - int(f / max_fit * gh))
@@ -554,19 +572,22 @@ def main():
                         pygame.draw.lines(screen, s.green, False, pts, 2)
                     for p in pts:
                         pygame.draw.circle(screen, s.cyan, p, 4)
-                    draw_text(screen,
-                              f"Best fitness: {history[-1]:.0f}",
+                    draw_text(screen, f"Best fitness: {history[-1]:.0f}",
                               18, s.white, gx + gw // 2, gy - gh - 18)
                 draw_panel(screen, s.screen_width // 2, s.screen_height - 50,
                            700, 40, alpha=160)
                 draw_text(screen, hint_gen, 15, (140, 140, 160),
-                          s.screen_width // 2, s.screen_height - 50,
-                          bold=False)
+                          s.screen_width // 2, s.screen_height - 50, bold=False)
                 pygame.display.flip()
 
-            ga   = GeneticAlgorithm(population_size=20,
-                                    generations=35,
-                                    mutation_rate=0.3)
+            # Commit 8: pass UI-selected parameters to the GA
+            ga = GeneticAlgorithm(
+                population_size=20,
+                generations=35,
+                mutation_rate=0.3,
+                num_waypoints=ga_waypoints,
+                sharpness=s.GA_SHARPNESS_NAMES[ga_sharpness_idx],
+            )
             best = ga.run(update_callback=draw_ga_progress)
 
             if best.fitness == 0:
@@ -579,26 +600,28 @@ def main():
                 tid    = track_id(track.grid)
                 gsm.transition(GameState.LOADING)
 
-        # ═════════════════════════════════════════════════════════════════════
-        # LOADING
+        # ═════════════════════════════════════════════════════════════════════# ═════════════════════════════════════════════════════════════════════
+        # LOADING  (Commit 6: generates obstacles after race setup)
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.LOADING:
             (racers,
-             checkpoint_clusters,
-             race_stats,
-             preview_nodes,
-             preview_path) = setup_race(engine, track, start_state, screen)
+            checkpoint_clusters,
+            race_stats,
+            preview_nodes,
+            preview_path) = setup_race(engine, track, start_state, screen)
 
-            # Reset preview animation vars
             preview_surf        = None
             preview_node_count  = 0
             preview_phase       = "nodes"
             preview_path_frame  = 0
             preview_done_time   = None
 
-            # Ghost
             ghost_recorder.reset()
             ghost_car = _load_ghost_car(tid)
+
+            # Commit 6: generate obstacles for this track
+            obstacles       = generate_obstacles(track.grid)
+            oil_slick_turns = 0
 
             current_turn   = 0
             race_phase     = "INPUT"
@@ -610,11 +633,9 @@ def main():
             gsm.transition(GameState.AI_PREVIEW)
 
         # ═════════════════════════════════════════════════════════════════════
-        # AI_PREVIEW 
+        # AI_PREVIEW
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.AI_PREVIEW:
-
-            # Lazy-init the accumulation surface
             if preview_surf is None:
                 preview_surf = pygame.Surface(
                     (s.screen_width, s.screen_height), pygame.SRCALPHA)
@@ -623,147 +644,133 @@ def main():
             ts = track.TILE_SIZE
 
             if preview_phase == "nodes":
-                # Reveal a batch of explored nodes each frame
                 target = min(preview_node_count + s.AI_PREVIEW_NODES_PER_FRAME,
-                             len(preview_nodes))
+                            len(preview_nodes))
                 for i in range(preview_node_count, target):
                     st = preview_nodes[i]
                     px = st.x * ts + ts // 2
                     py = st.y * ts + ts // 2
-                    pygame.draw.circle(preview_surf,
-                                       (0, 190, 190, 100), (px, py), 2)
+                    pygame.draw.circle(preview_surf, (0, 190, 190, 100), (px, py), 2)
                 preview_node_count = target
-
                 if preview_node_count >= len(preview_nodes):
                     preview_phase = "path"
 
             elif preview_phase == "path":
-                # Trace the optimal path segment-by-segment
                 end = min(preview_path_frame + s.AI_PREVIEW_PATH_PER_FRAME,
-                          len(preview_path))
+                        len(preview_path))
                 for i in range(preview_path_frame, end):
                     st = preview_path[i]
                     px = st.x * ts + ts // 2
                     py = st.y * ts + ts // 2
-                    pygame.draw.circle(preview_surf,
-                                       (50, 255, 50, 220), (px, py), 3)
+                    pygame.draw.circle(preview_surf, (50, 255, 50, 220), (px, py), 3)
                 preview_path_frame = end
-
                 if preview_path_frame >= len(preview_path):
                     preview_phase     = "wait"
                     preview_done_time = time.time()
 
             elif preview_phase == "wait":
-                # Auto-advance after hold duration
                 if (preview_done_time and
                         time.time() - preview_done_time > s.AI_PREVIEW_HOLD_SECS):
                     gsm.transition(GameState.PRE_RACE)
 
-            # Draw accumulated surface on top of track
             screen.blit(preview_surf, (0, 0))
 
-            # Draw path so far as a polyline (crisp line over the dots)
             if preview_phase in ("path", "wait") and len(preview_path) > 1:
                 pts = [(st.x * ts + ts // 2, st.y * ts + ts // 2)
-                       for st in preview_path[:preview_path_frame]]
+                    for st in preview_path[:preview_path_frame]]
                 if len(pts) > 1:
                     pygame.draw.lines(screen, s.green, False, pts, 2)
 
-            # UI
             draw_overlay(screen, alpha=60)
             draw_text(screen, "A*  PATHFINDING  PREVIEW",
-                      32, s.yellow, s.screen_width // 2, 30)
+                    32, s.yellow, s.screen_width // 2, 30)
 
             if preview_phase == "nodes":
                 pct = (preview_node_count / max(1, len(preview_nodes))) * 100
                 draw_text(screen,
-                          f"Exploring...  {preview_node_count} / "
-                          f"{len(preview_nodes)} nodes  ({pct:.0f}%)",
-                          18, s.white, s.screen_width // 2, 68, bold=False)
+                        f"Exploring...  {preview_node_count} / "
+                        f"{len(preview_nodes)} nodes  ({pct:.0f}%)",
+                        18, s.white, s.screen_width // 2, 68, bold=False)
             elif preview_phase == "path":
                 draw_text(screen, "Tracing optimal route...",
-                          18, s.green, s.screen_width // 2, 68)
+                        18, s.green, s.screen_width // 2, 68)
             else:
                 draw_text(screen,
-                          f"A*: {race_stats['astar_time']:.3f}s  "
-                          f"{race_stats['astar_nodes']} nodes explored",
-                          18, s.green, s.screen_width // 2, 68)
+                        f"A*: {race_stats['astar_time']:.3f}s  "
+                        f"{race_stats['astar_nodes']} nodes explored",
+                        18, s.green, s.screen_width // 2, 68)
                 draw_pulsing_text(screen, "Press SPACE to continue",
-                                  22, s.white,
-                                  s.screen_width // 2, s.screen_height - 40)
+                                22, s.white,
+                                s.screen_width // 2, s.screen_height - 40)
 
-            draw_text(screen, "SPACE  Skip",
-                      14, (100, 100, 100),
-                      s.screen_width - 80, s.screen_height - 20, bold=False)
+            draw_text(screen, "SPACE  Skip", 14, (100, 100, 100),
+                    s.screen_width - 80, s.screen_height - 20, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # PRE_RACE  
+        # PRE_RACE  (Commit 4: weather selector)
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.PRE_RACE:
             draw_overlay(screen, alpha=190, color=(0, 0, 10))
 
             if not show_dev_stats:
-                draw_text(screen, "HOW TO PLAY",
-                          46, s.yellow, s.screen_width // 2,
-                          s.screen_height // 2 - 130)
-                draw_hint_row(screen, "↑ ↓ ← →", "Aim your acceleration",
-                              s.screen_width // 2, s.screen_height // 2 - 60)
+                draw_text(screen, "HOW TO PLAY", 46, s.yellow,
+                        s.screen_width // 2, s.screen_height // 2 - 140)
+                draw_hint_row(screen, "Up/Dn/Lt/Rt", "Aim your acceleration",
+                            s.screen_width // 2, s.screen_height // 2 - 72)
                 draw_hint_row(screen, "SPACE", "Confirm your move",
-                              s.screen_width // 2, s.screen_height // 2 - 20)
+                            s.screen_width // 2, s.screen_height // 2 - 34)
                 draw_text(screen,
-                          "You have 5 seconds per turn — don't let the timer run out!",
-                          20, s.red,
-                          s.screen_width // 2, s.screen_height // 2 + 20,
-                          bold=False)
+                        "You have 5 seconds per turn — don't let the timer run out!",
+                        20, s.red, s.screen_width // 2,
+                        s.screen_height // 2 + 6, bold=False)
                 draw_text(screen,
-                          f"Lives: {s.PLAYER_LIVES}  ·  "
-                          f"Hitting a wall costs a life",
-                          18, (200, 200, 200),
-                          s.screen_width // 2, s.screen_height // 2 + 55,
-                          bold=False)
+                        f"Lives: {s.PLAYER_LIVES}  ·  Hitting a wall costs a life",
+                        18, (200, 200, 200), s.screen_width // 2,
+                        s.screen_height // 2 + 38, bold=False)
                 if ghost_car:
                     draw_text(screen,
-                              f"👻  Ghost best: {ghost_car.best_turns} turns — beat it!",
-                              18, (160, 220, 160),
-                              s.screen_width // 2, s.screen_height // 2 + 85,
-                              bold=False)
+                            f"Ghost best: {ghost_car.best_turns} turns — beat it!",
+                            18, (160, 220, 160), s.screen_width // 2,
+                            s.screen_height // 2 + 66, bold=False)
+
+                # Commit 4: weather selector
+                wcol  = s.WEATHER_COLOURS.get(current_weather, s.white)
+                wlbl  = s.WEATHER_LABELS.get(current_weather, current_weather)
+                draw_text(screen,
+                        f"Weather: {wlbl}   [W to change]",
+                        18, wcol, s.screen_width // 2,
+                        s.screen_height // 2 + 98, bold=False)
+
             else:
-                draw_text(screen, "ALGORITHM COMPARISON",
-                          38, s.yellow,
-                          s.screen_width // 2, s.screen_height // 2 - 80)
+                draw_text(screen, "ALGORITHM COMPARISON", 38, s.yellow,
+                        s.screen_width // 2, s.screen_height // 2 - 80)
                 draw_text(screen,
-                          f"A*:   {race_stats['astar_time']:.3f}s  |  "
-                          f"{race_stats['astar_nodes']} nodes explored",
-                          24, s.green,
-                          s.screen_width // 2, s.screen_height // 2 - 20)
+                        f"A*:   {race_stats['astar_time']:.3f}s  |  "
+                        f"{race_stats['astar_nodes']} nodes explored",
+                        24, s.green, s.screen_width // 2,
+                        s.screen_height // 2 - 20)
                 draw_text(screen,
-                          f"BFS:  {race_stats['bfs_time']:.3f}s  |  "
-                          f"{race_stats['bfs_nodes']} nodes explored",
-                          24, s.red,
-                          s.screen_width // 2, s.screen_height // 2 + 20)
-                ratio = (race_stats["bfs_nodes"] /
-                         max(1, race_stats["astar_nodes"]))
+                        f"BFS:  {race_stats['bfs_time']:.3f}s  |  "
+                        f"{race_stats['bfs_nodes']} nodes explored",
+                        24, s.red, s.screen_width // 2,
+                        s.screen_height // 2 + 20)
+                ratio = race_stats["bfs_nodes"] / max(1, race_stats["astar_nodes"])
                 draw_text(screen,
-                          f"A* explored {ratio:.1f}× fewer nodes than BFS",
-                          18, (180, 180, 180),
-                          s.screen_width // 2, s.screen_height // 2 + 58,
-                          bold=False)
+                        f"A* explored {ratio:.1f}x fewer nodes than BFS",
+                        18, (180, 180, 180), s.screen_width // 2,
+                        s.screen_height // 2 + 58, bold=False)
 
             pygame.draw.line(screen, (50, 50, 70),
-                             (150, s.screen_height // 2 + 110),
-                             (s.screen_width - 150, s.screen_height // 2 + 110), 1)
-
-            draw_pulsing_text(screen, "PRESS  SPACE  TO  RACE",
-                              30, s.green,
-                              s.screen_width // 2, s.screen_height // 2 + 145)
-
-            draw_text(screen,
-                      "T  Toggle AI Stats    S  Save Track",
-                      15, (100, 100, 120),
-                      s.screen_width // 2, s.screen_height - 30, bold=False)
+                            (150, s.screen_height // 2 + 124),
+                            (s.screen_width - 150, s.screen_height // 2 + 124), 1)
+            draw_pulsing_text(screen, "PRESS  SPACE  TO  RACE", 30, s.green,
+                            s.screen_width // 2, s.screen_height // 2 + 155)
+            draw_text(screen, "T  Toggle AI Stats    S  Save Track    W  Change Weather",
+                    15, (100, 100, 120),
+                    s.screen_width // 2, s.screen_height - 30, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # RUNNING 
+        # RUNNING  (Commits 1, 4, 6)
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.RUNNING:
             player_racer = racers[0]
@@ -779,20 +786,33 @@ def main():
                     race_phase = "EXECUTE"
                 elif not player_racer.finished and not player_racer.crashed:
                     legal = engine.get_legal_moves(player_racer.state)
-                    draw_legal_moves(screen, legal,
-                                     player_ax, player_ay,
-                                     player_racer.state, track)
+                    draw_legal_moves(screen, legal, player_ax, player_ay,
+                                    player_racer.state, track)
                     draw_timer_bar(screen, time_remaining, s.turn_time_limit)
-                    draw_text(screen,
-                              f"({player_ax:+d}, {player_ay:+d})",
-                              16, s.white,
-                              s.screen_width // 2,
-                              s.screen_height - 22)
+                    draw_text(screen, f"({player_ax:+d}, {player_ay:+d})",
+                            16, s.white, s.screen_width // 2,
+                            s.screen_height - 22)
+
+                    # Commit 6: oil-slick warning overlay
+                    if oil_slick_turns > 0:
+                        draw_pulsing_text(screen,
+                                        f"OIL SLICK  ({oil_slick_turns} turns left)",
+                                        22, (220, 140, 30),
+                                        s.screen_width // 2,
+                                        s.screen_height // 2 - 30,
+                                        frequency=4.0)
                 else:
                     race_phase = "EXECUTE"
 
             # ── EXECUTE phase ─────────────────────────────────────────────────
             if race_phase == "EXECUTE":
+
+                # Commit 6: apply oil-slick acceleration override before any move
+                if oil_slick_turns > 0:
+                    player_ax = random.randint(-engine.accel_limit, engine.accel_limit)
+                    player_ay = random.randint(-engine.accel_limit, engine.accel_limit)
+                    oil_slick_turns -= 1
+
                 for racer in racers:
                     if racer.finished or racer.crashed:
                         continue
@@ -800,29 +820,45 @@ def main():
                     new_state = None
 
                     if racer.type == "PLAYER":
-                        new_vx = max(-5, min(5, racer.state.vx + player_ax))
-                        new_vy = max(-5, min(5, racer.state.vy + player_ay))
+                        # Commit 4: clamp acceleration to current weather limits
+                        eff_ax = max(-engine.accel_limit,
+                                    min(engine.accel_limit, player_ax))
+                        eff_ay = max(-engine.accel_limit,
+                                    min(engine.accel_limit, player_ay))
+
+                        # Commit 4 (Snowy): further clamp hard-braking
+                        if engine.weather == "Snowy":
+                            if racer.state.vx != 0 and eff_ax * racer.state.vx < 0:
+                                eff_ax = max(-engine.brake_limit,
+                                            min(engine.brake_limit, eff_ax))
+                            if racer.state.vy != 0 and eff_ay * racer.state.vy < 0:
+                                eff_ay = max(-engine.brake_limit,
+                                            min(engine.brake_limit, eff_ay))
+
+                        new_vx = max(-engine.max_speed,
+                                    min(engine.max_speed, racer.state.vx + eff_ax))
+                        new_vy = max(-engine.max_speed,
+                                    min(engine.max_speed, racer.state.vy + eff_ay))
                         new_x  = racer.state.x + new_vx
                         new_y  = racer.state.y + new_vy
+
                         if (engine._check_path(racer.state.x, racer.state.y,
-                                               new_x, new_y)
+                                            new_x, new_y)
                                 and engine._is_safe(new_x, new_y)):
                             new_state = CarState(new_x, new_y, new_vx, new_vy)
                         else:
-                            # Lives system — preserve lap progress on respawn
+                            # Commit 1: preserve lap data on respawn
                             racer.lives -= 1
                             print(f"{racer.name} crashed! {racer.lives} lives left.")
                             if racer.lives <= 0:
                                 racer.crashed = True
                             else:
-                                # Belt-and-suspenders: explicitly save and restore so
-                                # future refactors can't silently discard the state.
-                                saved_laps = racer.laps_completed
-                                saved_cps  = set(racer.checkpoints_cleared)
-                                racer.state                 = start_state
-                                racer.laps_completed        = saved_laps
-                                racer.checkpoints_cleared   = saved_cps
-                                racer.grace_turns_remaining = 3 
+                                saved_laps              = racer.laps_completed
+                                saved_cps               = set(racer.checkpoints_cleared)
+                                racer.state             = start_state
+                                racer.laps_completed    = saved_laps
+                                racer.checkpoints_cleared = saved_cps
+                                racer.grace_turns_remaining = 3
                                 respawn_flash_until = time.time() + 0.6
                                 player_ax = 0
                                 player_ay = 0
@@ -844,14 +880,41 @@ def main():
                     else:
                         racer.state = new_state
                         check_racer_progress(racer, track,
-                                             checkpoint_clusters, current_turn)
+                                            checkpoint_clusters, current_turn)
 
-                # Record ghost position after player moves
+                        # Commit 6: obstacle check (player only)
+                        if racer.type == "PLAYER":
+                            for obs in obstacles:
+                                if (obs.active
+                                        and obs.x == new_state.x
+                                        and obs.y == new_state.y):
+                                    if obs.type == "OilSpill":
+                                        oil_slick_turns = s.OIL_SLICK_TURNS
+                                        print("[OIL] Player hit an oil spill!")
+                                    elif obs.type == "Pothole":
+                                        obs.active = False
+                                        racer.lives -= 1
+                                        print(f"[POTHOLE] Racer hit a pothole! "
+                                            f"{racer.lives} lives left.")
+                                        if racer.lives <= 0:
+                                            racer.crashed = True
+                                        else:
+                                            saved_laps  = racer.laps_completed
+                                            saved_cps   = set(racer.checkpoints_cleared)
+                                            racer.state = start_state
+                                            racer.laps_completed      = saved_laps
+                                            racer.checkpoints_cleared = saved_cps
+                                            racer.grace_turns_remaining = 3
+                                            respawn_flash_until = time.time() + 0.6
+                                            player_ax = 0
+                                            player_ay = 0
+
+                # Ghost recording
                 if not player_racer.crashed:
                     ghost_recorder.record(player_racer.state.x,
-                                          player_racer.state.y)
+                                        player_racer.state.y)
 
-                # ── Check end conditions ───────────────────────────────────────
+                # End conditions
                 if player_racer.finished:
                     new_record = save_ghost(tid, ghost_recorder.positions,
                                             current_turn)
@@ -859,15 +922,15 @@ def main():
                 elif player_racer.crashed or current_turn >= s.MAX_TURNS:
                     gsm.transition(GameState.LOSE)
                 else:
-                    current_turn    += 1
-                    race_phase       = "INPUT"
-                    player_ax        = 0
-                    player_ay        = 0
-                    turn_start_time  = time.time()
+                    current_turn   += 1
+                    race_phase      = "INPUT"
+                    player_ax       = 0
+                    player_ay       = 0
+                    turn_start_time = time.time()
 
             # ── Drawing ───────────────────────────────────────────────────────
 
-            # Ghost car 
+            # Ghost car
             if ghost_car and track:
                 draw_ghost_car(screen, ghost_car, current_turn, track.TILE_SIZE)
 
@@ -880,111 +943,110 @@ def main():
                         pygame.draw.circle(screen, (0, 160, 160), (px, py), 2)
 
             draw_active_checkpoint(screen, checkpoint_clusters,
-                                   player_racer, track.TILE_SIZE)
+                                player_racer, track.TILE_SIZE)
             draw_checkpoint_numbers(screen, checkpoint_clusters, track.TILE_SIZE)
+
+            # Commit 6: draw obstacles beneath racers
+            draw_obstacles(screen, obstacles, track.TILE_SIZE)
+
             draw_racers(screen, racers, track)
 
             # Respawn flash
             if time.time() < respawn_flash_until:
                 flash = pygame.Surface((s.screen_width, s.screen_height),
-                                       pygame.SRCALPHA)
+                                    pygame.SRCALPHA)
                 flash.fill((255, 50, 50, 80))
                 screen.blit(flash, (0, 0))
                 draw_text(screen,
-                          f"CRASHED!  {player_racer.lives} lives left",
-                          36, s.red,
-                          s.screen_width // 2, s.screen_height // 2)
+                        f"CRASHED!  {player_racer.lives} lives left",
+                        36, s.red,
+                        s.screen_width // 2, s.screen_height // 2)
 
             # ── HUD ───────────────────────────────────────────────────────────
 
-            # Top-left: position badge 
+            # Top-left: position badge
             place = get_player_place(player_racer, racers, checkpoint_clusters)
             draw_place_badge(screen, place, 45, 30)
 
             # Top-right: speed + lives
             draw_panel(screen, s.screen_width - 90, 30, 160, 56, alpha=160)
             draw_speed_gauge(screen,
-                             player_racer.state.vx, player_racer.state.vy,
-                             s.screen_width - 95, 22)
-            draw_lives(screen,
-                       player_racer.lives, player_racer.max_lives,
-                       s.screen_width - 90, 46)
+                            player_racer.state.vx, player_racer.state.vy,
+                            s.screen_width - 95, 22)
+            draw_lives(screen, player_racer.lives, player_racer.max_lives,
+                    s.screen_width - 90, 46)
+
+            # Commit 4: weather indicator below the HUD panel
+            wcol = s.WEATHER_COLOURS.get(current_weather, s.white)
+            draw_text(screen,
+                    s.WEATHER_LABELS.get(current_weather, current_weather),
+                    13, wcol, s.screen_width - 90, 66, bold=False)
 
             # Right side: leaderboard
             draw_leaderboard(screen, racers, checkpoint_clusters, current_turn)
 
         # ═════════════════════════════════════════════════════════════════════
-        # WIN  ( 17)
+        # WIN
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.WIN:
             draw_overlay(screen, alpha=175, color=(0, 10, 0))
-
-            draw_text(screen, "🏆  YOU  WIN  🏆",
-                      60, s.yellow, s.screen_width // 2,
-                      s.screen_height // 2 - 110)
-
-            mins  = current_turn // 60
-            secs  = current_turn % 60
-            draw_text(screen, f"Finished in  {current_turn} turns  ({mins}m {secs}s equiv.)",
-                      26, s.white,
-                      s.screen_width // 2, s.screen_height // 2 - 45)
-
+            draw_text(screen, "YOU  WIN",
+                    60, s.yellow, s.screen_width // 2,
+                    s.screen_height // 2 - 110)
+            mins = current_turn // 60
+            secs = current_turn % 60
+            draw_text(screen,
+                    f"Finished in  {current_turn} turns  ({mins}m {secs}s equiv.)",
+                    26, s.white,
+                    s.screen_width // 2, s.screen_height // 2 - 45)
             if new_record:
-                draw_pulsing_text(screen, "★  NEW  GHOST  RECORD  ★",
-                                  28, s.green,
-                                  s.screen_width // 2, s.screen_height // 2)
+                draw_pulsing_text(screen, "NEW  GHOST  RECORD",
+                                28, s.green,
+                                s.screen_width // 2, s.screen_height // 2)
             elif ghost_car:
                 diff = current_turn - ghost_car.best_turns
                 col  = s.green if diff <= 0 else s.red
                 sign = "+" if diff > 0 else ""
                 draw_text(screen,
-                          f"Ghost: {ghost_car.best_turns} turns  ({sign}{diff})",
-                          22, col,
-                          s.screen_width // 2, s.screen_height // 2)
-
+                        f"Ghost: {ghost_car.best_turns} turns  ({sign}{diff})",
+                        22, col, s.screen_width // 2, s.screen_height // 2)
             pygame.draw.line(screen, (40, 80, 40),
-                             (150, s.screen_height // 2 + 30),
-                             (s.screen_width - 150, s.screen_height // 2 + 30), 1)
-
+                            (150, s.screen_height // 2 + 30),
+                            (s.screen_width - 150, s.screen_height // 2 + 30), 1)
             draw_hint_row(screen, "R", "Race again (same track)",
-                          s.screen_width // 2, s.screen_height // 2 + 60,
-                          highlight=True)
+                        s.screen_width // 2, s.screen_height // 2 + 60,
+                        highlight=True)
             draw_hint_row(screen, "G", "Generate a new track",
-                          s.screen_width // 2, s.screen_height // 2 + 95)
+                        s.screen_width // 2, s.screen_height // 2 + 95)
             draw_hint_row(screen, "M", "Main menu",
-                          s.screen_width // 2, s.screen_height // 2 + 130)
+                        s.screen_width // 2, s.screen_height // 2 + 130)
 
         # ═════════════════════════════════════════════════════════════════════
         # LOSE
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.LOSE:
             draw_overlay(screen, alpha=185, color=(15, 0, 0))
-
             draw_text(screen, "GAME  OVER",
-                      66, s.red, s.screen_width // 2,
-                      s.screen_height // 2 - 110)
-
+                    66, s.red, s.screen_width // 2,
+                    s.screen_height // 2 - 110)
             reason = ("Out of lives!" if racers and racers[0].crashed
-                      else f"Turn limit reached ({s.MAX_TURNS} turns).")
+                    else f"Turn limit reached ({s.MAX_TURNS} turns).")
             draw_text(screen, reason, 26, s.white,
-                      s.screen_width // 2, s.screen_height // 2 - 45)
-
+                    s.screen_width // 2, s.screen_height // 2 - 45)
             draw_text(screen, f"You made it to turn {current_turn}.",
-                      20, (180, 180, 180),
-                      s.screen_width // 2, s.screen_height // 2 - 10,
-                      bold=False)
-
+                    20, (180, 180, 180),
+                    s.screen_width // 2, s.screen_height // 2 - 10,
+                    bold=False)
             pygame.draw.line(screen, (80, 20, 20),
-                             (150, s.screen_height // 2 + 25),
-                             (s.screen_width - 150, s.screen_height // 2 + 25), 1)
-
+                            (150, s.screen_height // 2 + 25),
+                            (s.screen_width - 150, s.screen_height // 2 + 25), 1)
             draw_hint_row(screen, "R", "Try again (same track)",
-                          s.screen_width // 2, s.screen_height // 2 + 60,
-                          highlight=True)
+                        s.screen_width // 2, s.screen_height // 2 + 60,
+                        highlight=True)
             draw_hint_row(screen, "G", "Generate a new track",
-                          s.screen_width // 2, s.screen_height // 2 + 95)
+                        s.screen_width // 2, s.screen_height // 2 + 95)
             draw_hint_row(screen, "M", "Main menu",
-                          s.screen_width // 2, s.screen_height // 2 + 130)
+                        s.screen_width // 2, s.screen_height // 2 + 130)
 
         pygame.display.flip()
 

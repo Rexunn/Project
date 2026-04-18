@@ -48,6 +48,8 @@ class Racer:
         self.crashed:  bool  = False
         self.finish_turn: int | None = None
 
+        self.grace_turns_remaining: int = 0
+
         # ── Lap tracking ─────────────────────────────────────────────────────
         self.laps_completed: int = 0
         self.total_laps:     int = 1
