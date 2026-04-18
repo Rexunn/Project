@@ -27,17 +27,17 @@ from ga import GeneticAlgorithm
 from game_engine import PhysicsEngine
 from game_state_manager import GameState, GameStateManager
 from ghost_recorder import GhostCar, GhostRecorder, load_ghost, save_ghost, track_id
-from obstacles import Obstacle, generate_obstacles          # Commit 6
+from obstacles import Obstacle, generate_obstacles          
 from solver import AStarSolver
 from track import Track
 from ui import (
     draw_boot_background,
-    draw_ga_setup,                                          # Commit 7
+    draw_ga_setup,                                          
     draw_hint_row,
     draw_leaderboard,
     draw_lives,
     draw_menu_list,
-    draw_obstacles,                                         # Commit 6
+    draw_obstacles,                                         
     draw_overlay,
     draw_panel,
     draw_place_badge,
@@ -45,7 +45,9 @@ from ui import (
     draw_speed_gauge,
     draw_text,
     draw_timer_bar,
-    draw_weather_badge,                                     # Commit 4
+    draw_weather_badge,                                     
+    draw_wrong_way_banner,
+    draw_static_path_preview                                 
 )
 
 
@@ -98,7 +100,7 @@ def get_cpu_target(racer, checkpoint_clusters, track):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Race-progress checker  (Commit 1: grace-turn guard)
+# Race-progress checker  
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
@@ -108,7 +110,7 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
     tile = track.grid[y][x]
     nxt  = len(racer.checkpoints_cleared)
 
-    # Commit 1: tick down grace counter each turn
+    #tick down grace counter each turn
     if racer.grace_turns_remaining > 0:
         racer.grace_turns_remaining -= 1
 
@@ -117,7 +119,7 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
             racer.checkpoints_cleared.add(nxt)
             print(f"{racer.name} CP {nxt+1}/{len(checkpoint_clusters)}")
 
-    # Commit 1 FIX: skip finish detection during respawn grace window
+    # FIX: skip finish detection during respawn grace window
     if (tile == 3
             and len(racer.checkpoints_cleared) >= len(checkpoint_clusters)
             and racer.grace_turns_remaining == 0):
@@ -287,7 +289,7 @@ def setup_race(engine, track, start_state, screen):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Racer reset helper  (Commit 1: resets grace_turns_remaining)
+# Racer reset helper 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def reset_racers(racers, start_state):
@@ -300,7 +302,7 @@ def reset_racers(racers, start_state):
         r.finish_turn           = None
         r.path_index            = 0
         r.ghost_positions       = []
-        r.grace_turns_remaining = 0    # Commit 1
+        r.grace_turns_remaining = 0   
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
 
@@ -362,14 +364,14 @@ def main():
     # ── Respawn flash ─────────────────────────────────────────────────────────
     respawn_flash_until: float = 0.0
 
-    # ── Weather (Commit 4) ────────────────────────────────────────────────────
+    # ── Weather  ────────────────────────────────────────────────────
     current_weather: str = s.DEFAULT_WEATHER
 
-    # ── Obstacles (Commit 6) ──────────────────────────────────────────────────
+    # ── Obstacles  ──────────────────────────────────────────────────
     obstacles:       list = []
     oil_slick_turns: int  = 0    # turns the oil-slick randomisation lasts
 
-    # ── GA generation controls (Commit 7) ────────────────────────────────────
+    # ── GA generation controls  ────────────────────────────────────
     ga_waypoints:     int = s.GA_DEFAULT_WAYPOINTS
     ga_sharpness_idx: int = s.GA_DEFAULT_SHARPNESS
 
@@ -405,7 +407,7 @@ def main():
                                 f for f in os.listdir(".") if f.endswith(".json"))
                             map_idx = 0
                             gsm.transition(GameState.MAP_SELECT)
-                        else:                   # Commit 7: Generate → GA_SETUP first
+                        else:                   # Generate → GA_SETUP first
                             gsm.transition(GameState.GA_SETUP)
 
                 # ── MAP_SELECT ─────────────────────────────────────────────────
@@ -424,7 +426,7 @@ def main():
                     elif event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
                         gsm.transition(GameState.BOOT_MENU)
 
-                # ── GA_SETUP (Commit 7) ────────────────────────────────────────
+                # ── GA_SETUP  ────────────────────────────────────────
                 elif gsm == GameState.GA_SETUP:
                     if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                         gsm.transition(GameState.GENERATING)
@@ -449,7 +451,7 @@ def main():
                 # ── PRE_RACE ───────────────────────────────────────────────────
                 elif gsm == GameState.PRE_RACE:
                     if event.key == pygame.K_SPACE:
-                        # Commit 4: apply weather physics before the race starts
+                        # Apply weather physics before the race starts
                         engine.set_weather(current_weather)
                         turn_start_time = time.time()
                         race_start_time = time.time()
@@ -459,12 +461,12 @@ def main():
                     elif event.key == pygame.K_s and track:
                         fname = f"custom_track_{int(time.time())}.json"
                         track.save_to_file(fname)
-                    elif event.key == pygame.K_w:             # Commit 4: cycle weather
+                    elif event.key == pygame.K_w:             # Cycle weather
                         idx = s.WEATHER_MODES.index(current_weather)
                         current_weather = s.WEATHER_MODES[(idx + 1) % len(s.WEATHER_MODES)]
 
                 # ── RUNNING ────────────────────────────────────────────────────
-                # Commit 4: clamp input to engine.accel_limit so weather matters
+                #clamp input to engine.accel_limit so weather matters
                 elif gsm == GameState.RUNNING and race_phase == "INPUT":
                     lim = engine.accel_limit if engine else 2
                     if   event.key == pygame.K_UP:    player_ay = max(-lim, player_ay - 1)
@@ -479,8 +481,8 @@ def main():
                         reset_racers(racers, start_state)
                         ghost_recorder.reset()
                         ghost_car        = _load_ghost_car(tid)
-                        obstacles        = generate_obstacles(track.grid)  # Commit 6
-                        oil_slick_turns  = 0                               # Commit 6
+                        obstacles        = generate_obstacles(track.grid)  
+                        oil_slick_turns  = 0                               
                         current_turn     = 0
                         race_phase       = "INPUT"
                         player_ax        = 0
@@ -541,14 +543,14 @@ def main():
                       s.screen_width // 2, s.screen_height - 40, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # GA_SETUP  (Commit 7)
+        # GA_SETUP 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.GA_SETUP:
             draw_overlay(screen, alpha=180, color=(5, 5, 15))
             draw_ga_setup(screen, ga_waypoints, ga_sharpness_idx)
 
         # ═════════════════════════════════════════════════════════════════════
-        # GENERATING  (Commit 8: passes ga_waypoints + sharpness)
+        # GENERATING 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.GENERATING:
             hint_gen = random.choice(s.LOADING_HINTS)
@@ -580,7 +582,7 @@ def main():
                           s.screen_width // 2, s.screen_height - 50, bold=False)
                 pygame.display.flip()
 
-            # Commit 8: pass UI-selected parameters to the GA
+            # pass UI-selected parameters to the GA
             ga = GeneticAlgorithm(
                 population_size=20,
                 generations=35,
@@ -601,7 +603,7 @@ def main():
                 gsm.transition(GameState.LOADING)
 
         # ═════════════════════════════════════════════════════════════════════# ═════════════════════════════════════════════════════════════════════
-        # LOADING  (Commit 6: generates obstacles after race setup)
+        # LOADING 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.LOADING:
             (racers,
@@ -619,7 +621,7 @@ def main():
             ghost_recorder.reset()
             ghost_car = _load_ghost_car(tid)
 
-            # Commit 6: generate obstacles for this track
+            # Generate obstacles for this track
             obstacles       = generate_obstacles(track.grid)
             oil_slick_turns = 0
 
@@ -707,7 +709,7 @@ def main():
                     s.screen_width - 80, s.screen_height - 20, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
-        # PRE_RACE  (Commit 4: weather selector)
+        # PRE_RACE 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.PRE_RACE:
             draw_overlay(screen, alpha=190, color=(0, 0, 10))
@@ -733,7 +735,7 @@ def main():
                             18, (160, 220, 160), s.screen_width // 2,
                             s.screen_height // 2 + 66, bold=False)
 
-                # Commit 4: weather selector
+                # Weather selector
                 wcol  = s.WEATHER_COLOURS.get(current_weather, s.white)
                 wlbl  = s.WEATHER_LABELS.get(current_weather, current_weather)
                 draw_text(screen,
@@ -793,7 +795,7 @@ def main():
                             16, s.white, s.screen_width // 2,
                             s.screen_height - 22)
 
-                    # Commit 6: oil-slick warning overlay
+                    # Oil-slick warning overlay
                     if oil_slick_turns > 0:
                         draw_pulsing_text(screen,
                                         f"OIL SLICK  ({oil_slick_turns} turns left)",
@@ -807,7 +809,7 @@ def main():
             # ── EXECUTE phase ─────────────────────────────────────────────────
             if race_phase == "EXECUTE":
 
-                # Commit 6: apply oil-slick acceleration override before any move
+                # Apply oil-slick acceleration override before any move
                 if oil_slick_turns > 0:
                     player_ax = random.randint(-engine.accel_limit, engine.accel_limit)
                     player_ay = random.randint(-engine.accel_limit, engine.accel_limit)
@@ -820,13 +822,13 @@ def main():
                     new_state = None
 
                     if racer.type == "PLAYER":
-                        # Commit 4: clamp acceleration to current weather limits
+                        # Clamp acceleration to current weather limits
                         eff_ax = max(-engine.accel_limit,
                                     min(engine.accel_limit, player_ax))
                         eff_ay = max(-engine.accel_limit,
                                     min(engine.accel_limit, player_ay))
 
-                        # Commit 4 (Snowy): further clamp hard-braking
+                        # snowy weather reduces effective acceleration and braking, making it harder to change speed or stop
                         if engine.weather == "Snowy":
                             if racer.state.vx != 0 and eff_ax * racer.state.vx < 0:
                                 eff_ax = max(-engine.brake_limit,
@@ -847,7 +849,7 @@ def main():
                                 and engine._is_safe(new_x, new_y)):
                             new_state = CarState(new_x, new_y, new_vx, new_vy)
                         else:
-                            # Commit 1: preserve lap data on respawn
+                            # Preserve lap data on respawn
                             racer.lives -= 1
                             print(f"{racer.name} crashed! {racer.lives} lives left.")
                             if racer.lives <= 0:
@@ -882,7 +884,7 @@ def main():
                         check_racer_progress(racer, track,
                                             checkpoint_clusters, current_turn)
 
-                        # Commit 6: obstacle check (player only)
+                        #obstacle check (player only)
                         if racer.type == "PLAYER":
                             for obs in obstacles:
                                 if (obs.active
@@ -946,7 +948,7 @@ def main():
                                 player_racer, track.TILE_SIZE)
             draw_checkpoint_numbers(screen, checkpoint_clusters, track.TILE_SIZE)
 
-            # Commit 6: draw obstacles beneath racers
+            #Draw obstacles beneath racers
             draw_obstacles(screen, obstacles, track.TILE_SIZE)
 
             draw_racers(screen, racers, track)
@@ -976,7 +978,7 @@ def main():
             draw_lives(screen, player_racer.lives, player_racer.max_lives,
                     s.screen_width - 90, 46)
 
-            # Commit 4: weather indicator below the HUD panel
+            # Weather indicator below the HUD panel
             wcol = s.WEATHER_COLOURS.get(current_weather, s.white)
             draw_text(screen,
                     s.WEATHER_LABELS.get(current_weather, current_weather),
