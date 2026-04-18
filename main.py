@@ -55,18 +55,47 @@ from ui import (
 # CPU AI helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def cpu_easy_move(engine, state):
+def cpu_easy_move(engine, state, cp_forward=None):
+    """
+    Random legal move with two layers of filtering:
+      1. Momentum bias   — prefer moves that don't reverse current velocity.
+      2. Directional bias — if a checkpoint forward vector is supplied, discard
+                            moves whose resulting velocity points more than ~107
+                            degrees away from the circuit direction.
+                            This prevents CPU Easy from completing the race
+                            by accidentally driving backwards.
+
+    Parameters
+    ----------
+    cp_forward : tuple(float, float) | None
+        Unit vector pointing from the current checkpoint toward the next one.
+        None = no directional filter (e.g. when all CPs are cleared).
+    """
     moves = engine.get_legal_moves(state)
     if not moves:
         return None
+
+    # Layer 1: momentum bias (existing logic)
     forward = [m for m in moves if
                (state.vx > 0 and m.vx >= 0) or
                (state.vx < 0 and m.vx <= 0) or
                (state.vy > 0 and m.vy >= 0) or
                (state.vy < 0 and m.vy <= 0)]
-    if forward and (state.vx != 0 or state.vy != 0):
-        return random.choice(forward)
-    return random.choice(moves)
+    pool = forward if (forward and (state.vx != 0 or state.vy != 0)) else moves
+
+    # Layer 2: directional filter using circuit forward vector
+    if cp_forward is not None:
+        fvx, fvy = cp_forward
+        directional = [
+            m for m in pool
+            if (m.vx * fvx + m.vy * fvy) > s.WRONG_WAY_DOT_THRESHOLD
+        ]
+        if directional:
+            return random.choice(directional)
+        # If the filter removes everything (e.g. car is cornered), fall through
+        # to the unfiltered pool so it doesn't get completely stuck.
+
+    return random.choice(pool)
 
 
 def cpu_medium_move(engine, state, target):
@@ -305,6 +334,47 @@ def reset_racers(racers, start_state):
         r.grace_turns_remaining = 0   
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
+def compute_cp_forward_vectors(checkpoint_clusters: list,
+                                finish_coords: list) -> list:
+    """
+    Pre-compute a unit "forward" direction vector for each checkpoint.
+
+    For checkpoint[i], the forward vector points from the centroid of
+    checkpoint[i] toward the centroid of checkpoint[i+1].
+    For the final checkpoint, it points toward the finish-line centroid.
+
+    These vectors are used by:
+      - The player wrong-way HUD warning (dot product check).
+      - CPU Easy directional filter (cpu_easy_move with cp_forward=).
+
+    Returns
+    -------
+    list of (float, float) — one unit vector per checkpoint, in order.
+    """
+    vectors = []
+    n = len(checkpoint_clusters)
+
+    for i in range(n):
+        cl = checkpoint_clusters[i]
+        cx1 = sum(x for x, _ in cl) / len(cl)
+        cy1 = sum(y for _, y in cl) / len(cl)
+
+        if i + 1 < n:
+            nxt  = checkpoint_clusters[i + 1]
+            cx2  = sum(x for x, _ in nxt) / len(nxt)
+            cy2  = sum(y for _, y in nxt) / len(nxt)
+        elif finish_coords:
+            cx2 = sum(x for x, _ in finish_coords) / len(finish_coords)
+            cy2 = sum(y for _, y in finish_coords) / len(finish_coords)
+        else:
+            vectors.append((1.0, 0.0))   # fallback: point right
+            continue
+
+        dx, dy = cx2 - cx1, cy2 - cy1
+        length = max(0.001, math.hypot(dx, dy))
+        vectors.append((dx / length, dy / length))
+
+    return vectors
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
