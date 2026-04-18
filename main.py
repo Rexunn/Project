@@ -942,7 +942,11 @@ def main():
                             continue
 
                     elif racer.type == "CPU_EASY":
-                        new_state = cpu_easy_move(engine, racer.state)
+                        nxt_cp = len(racer.checkpoints_cleared)
+                        fwd    = (cp_forward_vectors[nxt_cp]
+                                  if nxt_cp < len(cp_forward_vectors) else None)
+                        new_state = cpu_easy_move(engine, racer.state,
+                                                   cp_forward=fwd)
                     elif racer.type == "CPU_MEDIUM":
                         target    = get_cpu_target(racer, checkpoint_clusters, track)
                         new_state = cpu_medium_move(engine, racer.state, target)
