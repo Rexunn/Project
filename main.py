@@ -684,16 +684,27 @@ def main():
             preview_nodes,
             preview_path) = setup_race(engine, track, start_state, screen)
 
-            preview_surf        = None
-            preview_node_count  = 0
-            preview_phase       = "nodes"
-            preview_path_frame  = 0
-            preview_done_time   = None
+            finish_coords = [
+                (x, y)
+                for y in range(len(track.grid))
+                for x in range(len(track.grid[0]))
+                if track.grid[y][x] == 3
+            ]
+            cp_forward_vectors = compute_cp_forward_vectors(
+                checkpoint_clusters, finish_coords)
 
+            # ── AI preview: reset fade state ──────────────────────────────────
+            preview_alpha      = 0.0
+            preview_fade_done  = False
+            preview_fade_start = time.time()   # fade begins on first AI_PREVIEW frame
+            preview_done_time  = None
+
+
+            #Ghost
             ghost_recorder.reset()
             ghost_car = _load_ghost_car(tid)
 
-            # Generate obstacles for this track
+            # Obstacles
             obstacles       = generate_obstacles(track.grid)
             oil_slick_turns = 0
 
