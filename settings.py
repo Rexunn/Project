@@ -32,6 +32,17 @@ checkpoint_colour = yellow
 turn_time_limit = 5.0
 PLAYER_LIVES    = 3
 MAX_TURNS       = 250
+# ── AI Preview (updated for static fade-in) ───────────────────────────────────
+AI_PREVIEW_FADE_SECS  = 0.5    # seconds for path line to fade in
+AI_PREVIEW_HOLD_SECS  = 2.0    # seconds to hold after fade completes
+#  — kept as dead constants so existing run_experiments.py references
+#  don't break until tidy them up)
+AI_PREVIEW_NODES_PER_FRAME = 60
+AI_PREVIEW_PATH_PER_FRAME  = 4
+
+# ── Wrong way detection ───────────────────────────────────────────────────────
+WRONG_WAY_DOT_THRESHOLD = -0.3   # dot product below this triggers warning
+WRONG_WAY_MIN_SPEED     = 2      # |vx| or |vy| must exceed this to trigger
 
 # ── Default track ─────────────────────────────────────────────────────────────
 DEFAULT_TRACK = "track2.png"
@@ -74,7 +85,7 @@ LOADING_HINTS = [
     "Tip: Snowy conditions mean you can't brake hard — build momentum slowly.",
 ]
 
-# ── Weather system (Commit 2) ──────────────────────────────────────────────────
+# ── Weather system ──────────────────────────────────────────────────
 # Each mode has three physics parameters used by PhysicsEngine.set_weather():
 #   accel_limit  – max |acceleration| per axis in get_legal_moves
 #   max_speed    – velocity cap per axis
@@ -102,14 +113,14 @@ WEATHER_LABELS = {
     "Snowy": "Snowy",
 }
 
-# ── Obstacle system (Commit 2) ─────────────────────────────────────────────────
+# ── Obstacle system ─────────────────────────────────────────────────
 OBSTACLE_COUNT = 5          # obstacles placed per race
 OBSTACLE_TYPES = ["OilSpill", "Pothole"]
 
 # OilSpill: randomises player acceleration for this many turns after contact
 OIL_SLICK_TURNS = 3
 
-# ── GA generation controls (Commit 2) ──────────────────────────────────────────
+# ── GA generation controls ──────────────────────────────────────────
 GA_DEFAULT_WAYPOINTS = 6    # shown on GA_SETUP screen; range 4-10
 GA_DEFAULT_SHARPNESS = 1    # index into GA_SHARPNESS_NAMES (0=Gentle, 1=Normal, 2=Sharp)
 GA_SHARPNESS_NAMES   = ["Gentle", "Normal", "Sharp"]
