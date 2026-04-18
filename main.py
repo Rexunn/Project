@@ -721,75 +721,48 @@ def main():
         # AI_PREVIEW
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.AI_PREVIEW:
-            if preview_surf is None:
-                preview_surf = pygame.Surface(
-                    (s.screen_width, s.screen_height), pygame.SRCALPHA)
-                preview_surf.fill((0, 0, 0, 0))
 
-            ts = track.TILE_SIZE
-
-            if preview_phase == "nodes":
-                target = min(preview_node_count + s.AI_PREVIEW_NODES_PER_FRAME,
-                            len(preview_nodes))
-                for i in range(preview_node_count, target):
-                    st = preview_nodes[i]
-                    px = st.x * ts + ts // 2
-                    py = st.y * ts + ts // 2
-                    pygame.draw.circle(preview_surf, (0, 190, 190, 100), (px, py), 2)
-                preview_node_count = target
-                if preview_node_count >= len(preview_nodes):
-                    preview_phase = "path"
-
-            elif preview_phase == "path":
-                end = min(preview_path_frame + s.AI_PREVIEW_PATH_PER_FRAME,
-                        len(preview_path))
-                for i in range(preview_path_frame, end):
-                    st = preview_path[i]
-                    px = st.x * ts + ts // 2
-                    py = st.y * ts + ts // 2
-                    pygame.draw.circle(preview_surf, (50, 255, 50, 220), (px, py), 3)
-                preview_path_frame = end
-                if preview_path_frame >= len(preview_path):
-                    preview_phase     = "wait"
+            # ── Fade-in logic ─────────────────────────────────────────────────
+            if not preview_fade_done:
+                elapsed      = time.time() - preview_fade_start
+                preview_alpha = min(255.0, (elapsed / s.AI_PREVIEW_FADE_SECS) * 255.0)
+                if preview_alpha >= 255.0:
+                    preview_fade_done = True
                     preview_done_time = time.time()
-
-            elif preview_phase == "wait":
+            else:
+                # Hold phase: auto-advance after hold duration
                 if (preview_done_time and
                         time.time() - preview_done_time > s.AI_PREVIEW_HOLD_SECS):
                     gsm.transition(GameState.PRE_RACE)
 
-            screen.blit(preview_surf, (0, 0))
+            # ── Draw static path over track ───────────────────────────────────
+            if preview_path and track:
+                draw_static_path_preview(
+                    screen, preview_path, track, int(preview_alpha))
 
-            if preview_phase in ("path", "wait") and len(preview_path) > 1:
-                pts = [(st.x * ts + ts // 2, st.y * ts + ts // 2)
-                    for st in preview_path[:preview_path_frame]]
-                if len(pts) > 1:
-                    pygame.draw.lines(screen, s.green, False, pts, 2)
+            # ── UI overlay ────────────────────────────────────────────────────
+            draw_overlay(screen, alpha=55)
 
-            draw_overlay(screen, alpha=60)
-            draw_text(screen, "A*  PATHFINDING  PREVIEW",
-                    32, s.yellow, s.screen_width // 2, 30)
+            draw_text(screen, "A*  OPTIMAL  PATH",
+                      30, s.yellow, s.screen_width // 2, 30)
 
-            if preview_phase == "nodes":
-                pct = (preview_node_count / max(1, len(preview_nodes))) * 100
+            # Stats line (always visible once path is drawn)
+            if preview_alpha > 60:
                 draw_text(screen,
-                        f"Exploring...  {preview_node_count} / "
-                        f"{len(preview_nodes)} nodes  ({pct:.0f}%)",
-                        18, s.white, s.screen_width // 2, 68, bold=False)
-            elif preview_phase == "path":
-                draw_text(screen, "Tracing optimal route...",
-                        18, s.green, s.screen_width // 2, 68)
-            else:
-                draw_text(screen,
-                        f"A*: {race_stats['astar_time']:.3f}s  "
-                        f"{race_stats['astar_nodes']} nodes explored",
-                        18, s.green, s.screen_width // 2, 68)
+                          f"{len(preview_path)} steps  ·  "
+                          f"{len(preview_nodes)} nodes explored  ·  "
+                          f"{race_stats.get('astar_time', 0):.3f}s",
+                          16, s.white,
+                          s.screen_width // 2, 68, bold=False)
+
+            if preview_fade_done:
                 draw_pulsing_text(screen, "Press SPACE to continue",
-                                22, s.white,
-                                s.screen_width // 2, s.screen_height - 40)
+                                  22, s.white,
+                                  s.screen_width // 2, s.screen_height - 40)
 
-            draw_text(screen, "SPACE  Skip", 14, (100, 100, 100),
-                    s.screen_width - 80, s.screen_height - 20, bold=False)
+            draw_text(screen, "SPACE  Skip / Advance",
+                      13, (90, 90, 100),
+                      s.screen_width - 100, s.screen_height - 18, bold=False)
 
         # ═════════════════════════════════════════════════════════════════════
         # PRE_RACE 
