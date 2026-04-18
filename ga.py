@@ -95,9 +95,22 @@ class Chromosome:
         fx, fy = self.waypoints[-1]
         self.finish_pos = (fx, fy)
 
-        # Encode checkpoints sequentially from value 4 upwards
+       # ── Checkpoint placement: prefer straightaways, avoid sharp corners ──
+        # Every even waypoint index is a candidate. Score each by curvature
+        # 0 = straight, 2 = U-turn
+        candidates   = list(range(2, len(self.waypoints) - 1, 2))
+        straightaways = [i for i in candidates
+                         if self._curvature_score(i) < 1.2]
+
+        # Fallback: if the curvature filter is too aggressive (e.g. all
+        # waypoints land on corners due to heavy jitter), use all candidates.
+        if len(straightaways) < max(1, len(candidates) // 2):
+            straightaways = candidates
+
+        # Draw in index order — this preserves the circuit sequence so the
+        # solver and wrong-way vectors remain consistent.
         cp_id = 4
-        for i in range(2, len(self.waypoints) - 1, 2):
+        for i in sorted(straightaways):
             self._draw_transverse_line(i, cp_id)
             cp_id += 1
 
