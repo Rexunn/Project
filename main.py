@@ -407,14 +407,16 @@ def main():
     checkpoint_clusters: list = []
     race_stats:          dict = {}
 
-    # ── AI preview ────────────────────────────────────────────────────────────
-    preview_nodes:      list          = []
-    preview_path:       list          = []
-    preview_surf:       pygame.Surface | None = None
-    preview_node_count: int           = 0
-    preview_phase:      str           = "nodes"
-    preview_path_frame: int           = 0
-    preview_done_time:  float | None  = None
+    # ── AI preview animation (static fade-in) ────────────────────────────────
+    preview_nodes:       list          = []     # explored states
+    preview_path:        list          = []     # optimal path line to draw
+    preview_alpha:       float         = 0.0   
+    preview_fade_done:   bool          = False 
+    preview_fade_start:  float         = 0.0    # time.time() when fade started
+    preview_done_time:   float | None  = None  
+
+    # ── Directional enforcement ───────────────────────────────────────────────
+    cp_forward_vectors: list = []    # unit vectors, one per checkpoint in order
 
     # ── In-race state ─────────────────────────────────────────────────────────
     current_turn:    int   = 0
