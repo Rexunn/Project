@@ -1028,6 +1028,10 @@ def main():
 
             draw_racers(screen, racers, track)
 
+            # Wrong-way banner (player only, purely cosmetic)
+            if player_racer.wrong_way:
+                draw_wrong_way_banner(screen)
+
             # Respawn flash
             if time.time() < respawn_flash_until:
                 flash = pygame.Surface((s.screen_width, s.screen_height),
