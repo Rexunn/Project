@@ -357,3 +357,55 @@ def draw_ga_setup(screen: pygame.Surface,
     draw_text(screen,
               "< >  Adjust turns    Up/Dn  Sharpness    SPACE  Generate    ESC  Back",
               13, (90, 90, 110), cx, s.screen_height - 36, bold=False)
+    # ── Static A* path preview (replaces incremental node animation) ──────────────
+
+def draw_static_path_preview(screen: pygame.Surface,
+                              preview_path: list,
+                              track,
+                              alpha: int) -> None:
+    """
+    Render the full optimal A* path as a single polyline that fades in.
+
+    The path is drawn onto a dedicated SRCALPHA surface at the requested
+    alpha (0–255) so the fade-in is a simple alpha ramp in the caller —
+    no incremental reveal, no frame counters, no accumulation surface.
+
+    The line is drawn in two passes:
+      1. A thicker, darker stroke for contrast against light track surfaces.
+      2. A thinner bright-green stroke on top.
+
+    Parameters
+    ----------
+    preview_path : list[CarState]
+        The ordered list returned by solver.solve().
+    track        : Track
+        Used for TILE_SIZE to convert grid coords → pixel coords.
+    alpha        : int  [0–255]
+        Current opacity; caller increments this each frame.
+    """
+    if not preview_path or alpha <= 0:
+        return
+
+    ts   = track.TILE_SIZE
+    pts  = [
+        (st.x * ts + ts // 2, st.y * ts + ts // 2)
+        for st in preview_path
+    ]
+    if len(pts) < 2:
+        return
+
+    # Build once per call onto an SRCALPHA surface so alpha blending works
+    surf = pygame.Surface((s.screen_width, s.screen_height), pygame.SRCALPHA)
+
+    # Pass 1: dark shadow stroke (contrast)
+    pygame.draw.lines(surf, (0, 80, 0, alpha), False, pts, 5)
+    # Pass 2: bright green stroke
+    pygame.draw.lines(surf, (50, 255, 80, alpha), False, pts, 2)
+
+    # Dot at each waypoint so corners are visible
+    for px, py in pts[::max(1, len(pts) // 60)]:   # sample ~60 dots max
+        pygame.draw.circle(surf, (50, 255, 80, min(alpha, 160)), (px, py), 2)
+
+    screen.blit(surf, (0, 0))
+
+
