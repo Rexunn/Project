@@ -407,5 +407,34 @@ def draw_static_path_preview(screen: pygame.Surface,
         pygame.draw.circle(surf, (50, 255, 80, min(alpha, 160)), (px, py), 2)
 
     screen.blit(surf, (0, 0))
+    
+# ── Wrong way banner ──────────────────────────────────────────────────────────
 
+def draw_wrong_way_banner(screen: pygame.Surface) -> None:
+    """
+    Pulsing red 'WRONG WAY' banner displayed while the player moves
+    significantly against the circuit direction.
+
+    Purely cosmetic — no physics are altered.
+    The pulse uses a faster sine frequency than draw_pulsing_text so it
+    reads as urgent rather than decorative.
+    """
+    pulse = (math.sin(time.time() * 8.0 * math.pi) + 1) / 2
+    alpha = int(160 + 95 * pulse)
+
+    # Dark red panel behind the text
+    draw_panel(screen,
+               s.screen_width // 2,
+               s.screen_height // 2 - 60,
+               380, 70,
+               color=(120, 0, 0), alpha=200)
+
+    # Bright text on top with its own pulse
+    draw_text(screen,
+              "WRONG WAY",
+              46,
+              (255, 55, 55),
+              s.screen_width // 2,
+              s.screen_height // 2 - 60,
+              alpha=alpha)
 
