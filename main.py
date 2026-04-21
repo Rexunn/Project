@@ -376,6 +376,56 @@ def compute_cp_forward_vectors(checkpoint_clusters: list,
 
     return vectors
 
+def _compute_wrong_way(player_racer, cp_forward_vectors: list) -> bool:
+    """
+    Compute whether the PLAYER racer is travelling significantly against
+    the intended circuit direction.
+
+    This function must only ever be called for the PLAYER racer.
+    The assertion is intentional — it documents the invariant and will
+    catch any future refactor that accidentally passes a CPU racer.
+
+    CPU racers are directionally guided through separate mechanisms:
+      - CPU_EASY  : the cp_forward parameter in cpu_easy_move() filters
+                    candidate moves whose velocity opposes the circuit.
+      - CPU_MEDIUM: greedy targeting always points toward the next CP,
+                    so it cannot sustain a wrong-way vector by design.
+      - CPU_HARD  : follows a pre-computed ordered A* path; wrong-way
+                    movement is structurally impossible.
+
+    Parameters
+    ----------
+    player_racer      : Racer — must have type == "PLAYER"
+    cp_forward_vectors: list of (float, float) unit vectors, one per CP
+
+    Returns
+    -------
+    bool — True if the player is going wrong way this frame.
+    """
+    assert player_racer.type == "PLAYER", (
+        "_compute_wrong_way must only be called for the PLAYER racer. "
+        f"Got type={player_racer.type!r}"
+    )
+
+    nxt_cp = len(player_racer.checkpoints_cleared)
+
+    # All checkpoints already cleared — player is heading to finish.
+    # Any direction is valid at this stage; suppress the warning.
+    if nxt_cp >= len(cp_forward_vectors):
+        return False
+
+    fvx, fvy = cp_forward_vectors[nxt_cp]
+
+    # Dot product of velocity against the forward circuit vector.
+    # Negative = moving against the circuit direction.
+    dot = player_racer.state.vx * fvx + player_racer.state.vy * fvy
+
+    # Speed guard: avoid false triggers when the player is barely moving
+    # or has just respawned (velocity is (0,0) at start_state).
+    spd = max(abs(player_racer.state.vx), abs(player_racer.state.vy))
+
+    return dot < s.WRONG_WAY_DOT_THRESHOLD and spd >= s.WRONG_WAY_MIN_SPEED    
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN
