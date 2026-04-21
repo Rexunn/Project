@@ -93,7 +93,7 @@ def load_ghost(tid: str) -> dict | None:
 
 def save_ghost(tid: str,
                positions: list[tuple[int, int]],
-               turns: int) -> bool:
+               turns: int, racer_name="You") -> bool:
     """
     Save ghost data if the new run beats the existing record.
     Returns True if the file was updated (new record set).
@@ -111,6 +111,7 @@ def save_ghost(tid: str,
             "ghost": {
                 "turns":     turns,
                 "positions": [[x, y] for x, y in positions],
+                "racer_name": racer_name,
             },
             "leaderboard": [
                 {"name": racer_name, "turns": turns, "date": _now_date()}
