@@ -31,14 +31,28 @@ class Obstacle:
     def __repr__(self) -> str:
         return f"Obstacle({self.type!r}, x={self.x}, y={self.y})"
 
+def _footprint_safe(track_grid: list, cx: int, cy: int) -> bool:
+    """
+    Return True if every tile in the 3×3 region centred on (cx, cy) is a
+    plain road tile (value == 1).
+
+    """
+    rows = len(track_grid)
+    cols = len(track_grid[0]) if rows else 0
+    for dy in range(-1, 2):
+        for dx in range(-1, 2):
+            nx, ny = cx + dx, cy + dy
+            if nx < 0 or nx >= cols or ny < 0 or ny >= rows:
+                return False
+            if track_grid[ny][nx] != 1:
+                return False
+    return True
+
 
 def generate_obstacles(track_grid: list, n: int | None = None) -> list:
     """
     Randomly place N obstacles on plain road tiles.
 
-    Eligible tiles have grid value == 1 (road).
-    Start (2), finish (3), and checkpoint tiles (>= 4) are avoided so
-    obstacles never block mandatory progress markers.
 
     Returns a list of Obstacle objects ready to use immediately.
     """
