@@ -912,10 +912,11 @@ def main():
                             (s.screen_width - 150, s.screen_height // 2 + 124), 1)
             draw_pulsing_text(screen, "PRESS  SPACE  TO  RACE", 30, s.green,
                             s.screen_width // 2, s.screen_height // 2 + 155)
-            draw_text(screen, "T  Toggle AI Stats    S  Save Track    W  Change Weather",
+            draw_text(screen, "T  Toggle AI Stats    S  Save&Name Track    W  Change Weather",
                     15, (100, 100, 120),
                     s.screen_width // 2, s.screen_height - 30, bold=False)
-
+            if naming_mode:
+                draw_naming_overlay(screen, track_name_buffer)
         # ═════════════════════════════════════════════════════════════════════
         # RUNNING  (Commits 1, 4, 6)
         # ═════════════════════════════════════════════════════════════════════
