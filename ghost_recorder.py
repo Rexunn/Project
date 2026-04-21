@@ -33,13 +33,13 @@ def ghost_filepath(tid: str) -> str:
 # ── Schema helpers ────────────────────────────────────────────────────────────
 
 def _now_iso() -> str:
-    """GMT timestamp string, second precision."""
-    return datetime.now(timezone.gmt).strftime("%Y-%m-%dT%H:%M:%S")
+    """UTC timestamp string, second precision."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _now_date() -> str:
-    """GMT date string for leaderboard entries."""
-    return datetime.now(timezone.gmt).strftime("%Y-%m-%d")
+    """UTC date string for leaderboard entries."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 def _migrate_old_schema(old: dict, tid: str) -> dict:
     """
