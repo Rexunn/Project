@@ -13,6 +13,7 @@ so each unique track gets its own record.
 import hashlib
 import json
 import os
+from datetime import datetime, timezone
 
 GHOST_DIR = "ghosts"
 
@@ -27,6 +28,18 @@ def track_id(grid: list[list[int]]) -> str:
 def ghost_filepath(tid: str) -> str:
     os.makedirs(GHOST_DIR, exist_ok=True)
     return os.path.join(GHOST_DIR, f"ghost_{tid}.json")
+
+
+# ── Schema helpers ────────────────────────────────────────────────────────────
+
+def _now_iso() -> str:
+    """GMT timestamp string, second precision."""
+    return datetime.now(timezone.gmt).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _now_date() -> str:
+    """GMT date string for leaderboard entries."""
+    return datetime.now(timezone.gmt).strftime("%Y-%m-%d")
 
 
 # ── File I/O ──────────────────────────────────────────────────────────────────
