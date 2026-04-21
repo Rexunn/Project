@@ -191,13 +191,13 @@ class GhostCar:
     """
 
     def __init__(self, ghost_data: dict):
-        raw = ghost_data.get("positions", [])
+        ghost_section = ghost_data.get("ghost", ghost_data)
+        raw = ghost_section.get("positions", [])
         self.positions:  list[tuple[int, int]] = [(p[0], p[1]) for p in raw]
-        self.best_turns: int = ghost_data.get("turns", 0)
+        self.best_turns: int = ghost_section.get("turns", 0)
 
     def get_position(self, turn: int) -> tuple[int, int] | None:
         """Return ghost position at 'turn', clamped to last known position."""
         if not self.positions:
             return None
-        idx = min(turn, len(self.positions) - 1)
-        return self.positions[idx]
+        return self.positions[min(turn, len(self.positions) - 1)]
