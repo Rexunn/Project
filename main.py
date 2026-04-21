@@ -47,7 +47,8 @@ from ui import (
     draw_timer_bar,
     draw_weather_badge,                                     
     draw_wrong_way_banner,
-    draw_static_path_preview                                 
+    draw_static_path_preview
+    draw_naming_overlay,                                 
 )
 
 
