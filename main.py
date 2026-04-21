@@ -1183,6 +1183,12 @@ def main():
                 draw_text(screen,
                         f"Ghost: {ghost_car.best_turns} turns  ({sign}{diff})",
                         22, col, s.screen_width // 2, s.screen_height // 2)
+            board = get_leaderboard(tid)
+            if board:
+                draw_track_leaderboard(
+                    screen, board,
+                    cx=s.screen_width // 2,
+                    cy=s.screen_height // 2 + 46)
             pygame.draw.line(screen, (40, 80, 40),
                             (150, s.screen_height // 2 + 30),
                             (s.screen_width - 150, s.screen_height // 2 + 30), 1)
