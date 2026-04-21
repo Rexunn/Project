@@ -99,15 +99,58 @@ def save_ghost(tid: str,
     Returns True if the file was updated (new record set).
     """
     existing = load_ghost(tid)
-    if existing and existing.get("turns", float("inf")) <= turns:
-        print(f"[GHOST] No new record. Best: {existing['turns']}, yours: {turns}")
-        return False
+        is_new_record = False
 
-    data = {"turns": turns, "positions": [[x, y] for x, y in positions]}
-    with open(ghost_filepath(tid), "w") as f:
-        json.dump(data, f)
-    print(f"[GHOST] 🏆 New record! {turns} turns saved.")
-    return True
+    if existing is None:
+        # First ever run on this track — create a fresh file
+        data = {
+            "metadata": {
+                "track_id":    tid,
+                "created_iso": _now_iso(),
+            },
+            "ghost": {
+                "turns":     turns,
+                "positions": [[x, y] for x, y in positions],
+            },
+            "leaderboard": [
+                {"name": racer_name, "turns": turns, "date": _now_date()}
+            ],
+        }
+        is_new_record = True
+        print(f"[GHOST] First record on this track: {turns} turns.")
+
+    else:
+        data = existing
+
+        # ── 1. Ghost update ───────────────────────────────────────────────────
+        current_best = data.get("ghost", {}).get("turns", float("inf"))
+        if turns < current_best:
+            data["ghost"] = {
+                "turns":     turns,
+                "positions": [[x, y] for x, y in positions],
+            }
+            is_new_record = True
+            print(f"[GHOST] New record: {turns} turns (was {current_best}).")
+        else:
+            print(f"[GHOST] No new record. Best: {current_best}, yours: {turns}.")
+
+        # ── 2. Leaderboard update ─────────────────────────────────────────────
+        board = data.get("leaderboard", [])
+        board.append({"name": racer_name, "turns": turns, "date": _now_date()})
+        board.sort(key=lambda e: e["turns"])
+        data["leaderboard"] = board[:LEADERBOARD_MAX]
+
+    # Write atomically via a temp file to avoid corruption on crash
+    path     = ghost_filepath(tid)
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, path)
+    except IOError as e:
+        print(f"[GHOST] Write failed: {e}")
+
+    return is_new_record
 
 
 # ── Active recorder ───────────────────────────────────────────────────────────
