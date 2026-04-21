@@ -26,7 +26,14 @@ from car import CarState, Racer
 from ga import GeneticAlgorithm
 from game_engine import PhysicsEngine
 from game_state_manager import GameState, GameStateManager
-from ghost_recorder import GhostCar, GhostRecorder, load_ghost, save_ghost, track_id
+from ghost_recorder import (
+    GhostCar, 
+    GhostRecorder,
+    get_leaderboard, 
+    load_ghost, 
+    save_ghost, 
+    track_id,
+)
 from obstacles import Obstacle, generate_obstacles          
 from solver import AStarSolver
 from track import Track
