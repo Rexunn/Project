@@ -41,6 +41,28 @@ def _now_date() -> str:
     """GMT date string for leaderboard entries."""
     return datetime.now(timezone.gmt).strftime("%Y-%m-%d")
 
+def _migrate_old_schema(old: dict, tid: str) -> dict:
+    """
+    Convert a flat-schema ghost file to the new three-section format
+    Old format:  {"turns": N, "positions": [[x,y], ...]}
+    New format:  {"metadata": {...}, "ghost": {...}, "leaderboard": [...]}
+    """
+    turns     = old.get("turns", 0)
+    positions = old.get("positions", [])
+
+    return {
+        "metadata": {
+            "track_id":    tid,
+            "created_iso": _now_iso(),
+        },
+        "ghost": {
+            "turns":     turns,
+            "positions": positions,
+        },
+        "leaderboard": [
+            {"name": "You", "turns": turns, "date": _now_date()}
+        ],
+    }
 
 # ── File I/O ──────────────────────────────────────────────────────────────────
 
