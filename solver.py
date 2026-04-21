@@ -3,19 +3,6 @@ solver.py
 ---------
 A* and BFS solvers for the racetrack problem.
 
-Key change (Step 2 fix):
-  The original solve() had a structural bug where the finish-line hunt
-  ran INSIDE the checkpoint loop, causing every checkpoint after the
-  first to be hunted *from the finish line* — pointing A* backwards.
-
-  Fix: single-pass ordered A* over the augmented state space
-  (x, y, vx, vy, cp_idx).  cp_idx advances only when the car lands on
-  checkpoint_clusters[cp_idx], preventing both the structural bug and
-  the direction-agnostic backtracking bug.
-
-  The public interface of solve() is unchanged:
-      solve() -> (full_path, all_explored, solve_time)
-  so main.py requires zero modifications.
 """
 
 from queue import PriorityQueue
@@ -35,13 +22,6 @@ class OrderedCarState:
     cp_idx == 0               car must clear checkpoints[0] next
     cp_idx == len(clusters)   all checkpoints cleared; car must reach finish
 
-    Admissibility note
-    ------------------
-    Adding cp_idx to the state cannot make the true cost-to-goal shorter
-    than in the unconstrained base case — it only adds mandatory waypoints.
-    Therefore the base admissible heuristic (Manhattan / 3.0) remains
-    admissible when applied to the augmented space, provided the heuristic
-    points toward the *next required checkpoint* rather than the global finish.
     """
     __slots__ = ('x', 'y', 'vx', 'vy', 'cp_idx')
 
@@ -90,12 +70,12 @@ class AStarSolver:
     def heuristic(self, state) -> float:
         """
         Admissible Manhattan heuristic for a single-target search.
-        Dividing by 10 ensures h(n) <= h*(n)
+        Dividing by 5 ensures h(n) <= h*(n)
         """
         if not self.current_goals:
             return 0.0
         return min(abs(state.x - gx) + abs(state.y - gy)
-                   for gx, gy in self.current_goals) / 10.0
+                   for gx, gy in self.current_goals) / 5.0
 
     # ── Original single-target searches (unchanged — used by BFS pipeline) ────
 
