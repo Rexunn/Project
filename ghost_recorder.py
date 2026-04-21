@@ -77,6 +77,18 @@ def load_ghost(tid: str) -> dict | None:
     except (json.JSONDecodeError, IOError) as e:
         print(f"[GHOST] Could not load {path}: {e}")
         return None
+    
+      if "metadata" not in data:
+        print(f"[GHOST] Migrating old schema for track {tid}")
+        data = _migrate_old_schema(data, tid)
+        # Write migrated file immediately so future loads use new schema
+        try:
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+        except IOError as e:
+            print(f"[GHOST] Migration write failed: {e}")
+
+    return data
 
 
 def save_ghost(tid: str,
