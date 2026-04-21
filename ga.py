@@ -95,17 +95,19 @@ class Chromosome:
         fx, fy = self.waypoints[-1]
         self.finish_pos = (fx, fy)
 
-       # ── Checkpoint placement: prefer straightaways, avoid sharp corners ──
-        # Every even waypoint index is a candidate. Score each by curvature
-        # 0 = straight, 2 = U-turn
-        candidates   = list(range(2, len(self.waypoints) - 1, 2))
-        straightaways = [i for i in candidates
-                         if self._curvature_score(i) < 1.2]
+       # ── Checkpoint placement: sort and slice by local curvature
+        candidates = list(range(2, len(self.waypoints) - 1, 2))
 
-        # Fallback: if the curvature filter is too aggressive (e.g. all
-        # waypoints land on corners due to heavy jitter), use all candidates.
-        if len(straightaways) < max(1, len(candidates) // 2):
-            straightaways = candidates
+        # Score each candidate; pair with its waypoint index for re-sorting.
+        scored = sorted(
+            [(self._curvature_score(i), i) for i in candidates]
+        )   # ascending: index 0 is the flattest (best) candidate
+
+        # How many checkpoints to place. At least 1, at most all candidates.
+        n_checkpoints = max(1, math.ceil(len(candidates) / 2))
+
+        # Take the n_checkpoints flattest candidates, then restore circuit order.
+        chosen = sorted(idx for _, idx in scored[:n_checkpoints])
 
         # Draw in index order — this preserves the circuit sequence so the
         # solver and wrong-way vectors remain consistent.
