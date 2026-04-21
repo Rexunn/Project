@@ -437,15 +437,12 @@ def draw_wrong_way_banner(screen: pygame.Surface) -> None:
               s.screen_width // 2,
               s.screen_height // 2 - 60,
               alpha=alpha)
-              
+
 # ── Track naming overlay ──────────────────────────────────────────────────────
 
 def draw_naming_overlay(screen: pygame.Surface, name_buffer: str) -> None:
     """
     Render a centred text-input prompt over the PRE_RACE screen.
-
-    Called every frame while naming_mode is True. Shows the characters the
-    player has typed so far, with a blinking cursor appended.
 
     Parameters
     ----------
@@ -487,3 +484,59 @@ def draw_naming_overlay(screen: pygame.Surface, name_buffer: str) -> None:
               s.screen_width // 2,
               s.screen_height // 2 + 46,
               bold=False)
+    
+# ── Track leaderboard ─────────────────────────────────────────────
+
+def draw_track_leaderboard(screen: pygame.Surface,
+                            leaderboard: list,
+                            cx: int, cy: int) -> None:
+    """
+    Render the top-5 persistent leaderboard for the current track.
+
+    Parameters
+    ----------
+    leaderboard : list of {"name": str, "turns": int, "date": str}
+        Sorted ascending by turns (best first).  At most 5 entries.
+    cx, cy : int
+        Centre pixel of the panel.
+    """
+    if not leaderboard:
+        return
+
+    panel_w = 340
+    row_h   = 28
+    panel_h = 40 + row_h * len(leaderboard)
+
+    draw_panel(screen, cx, cy, panel_w, panel_h, color=(0, 0, 20), alpha=210)
+
+    draw_text(screen, "Best Runs",
+              16, (160, 160, 190),
+              cx, cy - panel_h // 2 + 16, bold=False)
+
+    medal_colors = [
+        (255, 215,   0),   # 1st — gold
+        (192, 192, 192),   # 2nd — silver
+        (205, 127,  50),   # 3rd — bronze
+        (180, 180, 180),   # 4th
+        (160, 160, 160),   # 5th
+    ]
+
+    for rank, entry in enumerate(leaderboard):
+        ry    = cy - panel_h // 2 + 36 + rank * row_h
+        col   = medal_colors[rank] if rank < len(medal_colors) else s.white
+        label = f"{rank + 1}.  {entry['name']}"
+        turns = f"{entry['turns']} turns"
+        date  = entry.get("date", "")
+
+        # Left-aligned name with rank
+        draw_text(screen, label, 14, col,
+                  cx - panel_w // 2 + 70, ry, bold=(rank == 0))
+
+        # Right-aligned turn count
+        draw_text(screen, turns, 13, col,
+                  cx + panel_w // 2 - 70, ry, bold=False)
+
+        # Date in muted smaller text
+        if date:
+            draw_text(screen, date, 11, (100, 100, 120),
+                      cx, ry + 12, bold=False) 
