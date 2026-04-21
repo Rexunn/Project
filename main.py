@@ -1085,7 +1085,7 @@ def main():
                 # End conditions
                 if player_racer.finished:
                     new_record = save_ghost(tid, ghost_recorder.positions,
-                                            current_turn)
+                                            current_turn, racer_name="You")
                     gsm.transition(GameState.WIN)
                 elif player_racer.crashed or current_turn >= s.MAX_TURNS:
                     gsm.transition(GameState.LOSE)
