@@ -897,20 +897,12 @@ def main():
                     race_phase = "EXECUTE"
                 elif not player_racer.finished and not player_racer.crashed:
 
-                    # ── Wrong-way detection (player only) ─────────────────────
-                    nxt_cp = len(player_racer.checkpoints_cleared)
-                    if nxt_cp < len(cp_forward_vectors):
-                        fvx, fvy = cp_forward_vectors[nxt_cp]
-                        spd = max(abs(player_racer.state.vx),
-                                  abs(player_racer.state.vy))
-                        dot = (player_racer.state.vx * fvx +
-                               player_racer.state.vy * fvy)
-                        player_racer.wrong_way = (
-                            dot  < s.WRONG_WAY_DOT_THRESHOLD
-                            and spd >= s.WRONG_WAY_MIN_SPEED
-                        )
-                    else:
-                        player_racer.wrong_way = False
+                    # ── Wrong-way detection (PLAYER only) ────────────────────
+                    # CPU racers are directionally guided through their own
+                    # mechanisms — see _compute_wrong_way() docstring for the
+                    # full justification of why this never runs for CPUs.
+                    player_racer.wrong_way = _compute_wrong_way(
+                        player_racer, cp_forward_vectors)
 
                     legal = engine.get_legal_moves(player_racer.state)
                     draw_legal_moves(screen, legal, player_ax, player_ay,
