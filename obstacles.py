@@ -66,7 +66,7 @@ def generate_obstacles(track_grid: list, n: int | None = None) -> list:
         (c, r)
         for r in range(rows)
         for c in range(cols)
-        if track_grid[r][c] == 1
+        if _footprint_safe(track_grid, c, r)
     ]
 
     if not eligible:
