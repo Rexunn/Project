@@ -54,7 +54,7 @@ from ui import (
     draw_timer_bar,
     draw_weather_badge,                                     
     draw_wrong_way_banner,
-    draw_static_path_preview
+    draw_static_path_preview,
     draw_naming_overlay,   
     draw_track_leaderboard,                              
 )
@@ -1054,7 +1054,7 @@ def main():
                         if racer.type == "PLAYER":
                             for obs in obstacles:
                                 if (obs.active
-                                         nd abs(obs.x - new_state.x) <= 1
+                                        and abs(obs.x - new_state.x) <= 1
                                         and abs(obs.y - new_state.y) <= 1):
                                     if obs.type == "OilSpill":
                                         oil_slick_turns = s.OIL_SLICK_TURNS

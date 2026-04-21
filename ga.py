@@ -68,6 +68,8 @@ class Chromosome:
             dist  = max(abs(p2[0] - p1[0]), abs(p2[1] - p1[1]))
             steps = max(10, dist * 3)
 
+            last_drawn = None
+
             for step in range(steps + 1):
                 t  = step / steps
                 t2 = t * t
@@ -78,8 +80,11 @@ class Chromosome:
                 y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t
                             + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2
                             + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
-                self._carve_circle(int(x), int(y), radius=self.carve_radius)
-
+                ix, iy = int(x), int(y)
+                if (ix, iy) != last_drawn:
+                    self._carve_circle(ix, iy, radius=self.carve_radius)
+                    last_drawn = (ix, iy)
+                
         # Border walls
         for r in range(self.rows):
             self.grid[r][0] = self.grid[r][self.cols - 1] = 0
@@ -112,7 +117,7 @@ class Chromosome:
         # Draw in index order — this preserves the circuit sequence so the
         # solver and wrong-way vectors remain consistent.
         cp_id = 4
-        for i in sorted(straightaways):
+        for i in sorted(chosen):
             self._draw_transverse_line(i, cp_id)
             cp_id += 1
 

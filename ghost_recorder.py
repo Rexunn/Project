@@ -78,7 +78,7 @@ def load_ghost(tid: str) -> dict | None:
         print(f"[GHOST] Could not load {path}: {e}")
         return None
     
-      if "metadata" not in data:
+    if "metadata" not in data:
         print(f"[GHOST] Migrating old schema for track {tid}")
         data = _migrate_old_schema(data, tid)
         # Write migrated file immediately so future loads use new schema
@@ -99,7 +99,7 @@ def save_ghost(tid: str,
     Returns True if the file was updated (new record set).
     """
     existing = load_ghost(tid)
-        is_new_record = False
+    is_new_record = False
 
     if existing is None:
         # First ever run on this track — create a fresh file
