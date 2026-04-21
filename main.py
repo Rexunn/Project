@@ -516,6 +516,37 @@ def main():
 
             if event.type == pygame.KEYDOWN:
 
+                 # ── NAMING MODE — intercepts all keys while active ─────────────
+                if naming_mode:
+                    if event.key == pygame.K_RETURN:
+                        # Confirm: use typed name or fall back to timestamp
+                        clean = track_name_buffer.strip().replace(" ", "_")
+                        fname = (f"{clean}.json"
+                                 if clean
+                                 else f"custom_track_{int(time.time())}.json")
+                        if track:
+                            track.save_to_file(fname)
+                            # Refresh the saved-maps list immediately so the
+                            # new file appears in MAP_SELECT without a restart.
+                            saved_maps = sorted(
+                                f for f in os.listdir(".")
+                                if f.endswith(".json"))
+                        naming_mode       = False
+                        track_name_buffer = ""
+                    elif event.key == pygame.K_ESCAPE:
+                        # Cancel: discard typed name without saving
+                        naming_mode       = False
+                        track_name_buffer = ""
+                    elif event.key == pygame.K_BACKSPACE:
+                        track_name_buffer = track_name_buffer[:-1]
+                    else:
+                        # Accept printable ASCII characters only.
+                        # pygame.key.name() returns strings like 'a', '1', '-'.
+                        ch = event.unicode
+                        if ch and ch.isprintable() and len(track_name_buffer) < 40:
+                            track_name_buffer += ch
+                    continue 
+
                 # ── BOOT_MENU ──────────────────────────────────────────────────
                 if gsm == GameState.BOOT_MENU:
                     if event.key == pygame.K_UP:
