@@ -588,9 +588,9 @@ def main():
                         gsm.transition(GameState.RUNNING)
                     elif event.key == pygame.K_t:
                         show_dev_stats = not show_dev_stats
-                    elif event.key == pygame.K_s and track:
-                        fname = f"custom_track_{int(time.time())}.json"
-                        track.save_to_file(fname)
+                    elif event.key == pygame.K_s and track: #Space/W/T are suppressed till confirm/cancel
+                        naming_mode       = True
+                        track_name_buffer = ""
                     elif event.key == pygame.K_w:             # Cycle weather
                         idx = s.WEATHER_MODES.index(current_weather)
                         current_weather = s.WEATHER_MODES[(idx + 1) % len(s.WEATHER_MODES)]
