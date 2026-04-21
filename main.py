@@ -484,6 +484,10 @@ def main():
     tid:            str             = ""
     new_record:     bool            = False
 
+    # ── Track naming ───────────────────────────────────────────────
+    naming_mode:       bool = False   # True while player is typing a track name
+    track_name_buffer: str  = ""      # characters typed so far
+
     # ── Respawn flash ─────────────────────────────────────────────────────────
     respawn_flash_until: float = 0.0
 
