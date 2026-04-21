@@ -437,4 +437,53 @@ def draw_wrong_way_banner(screen: pygame.Surface) -> None:
               s.screen_width // 2,
               s.screen_height // 2 - 60,
               alpha=alpha)
+              
+# ── Track naming overlay ──────────────────────────────────────────────────────
 
+def draw_naming_overlay(screen: pygame.Surface, name_buffer: str) -> None:
+    """
+    Render a centred text-input prompt over the PRE_RACE screen.
+
+    Called every frame while naming_mode is True. Shows the characters the
+    player has typed so far, with a blinking cursor appended.
+
+    Parameters
+    ----------
+    name_buffer : str
+        The character sequence typed so far (does not include .json extension).
+    """
+    # Dim the screen behind the prompt
+    draw_overlay(screen, alpha=160, color=(0, 0, 20))
+
+    draw_panel(screen,
+               s.screen_width  // 2,
+               s.screen_height // 2,
+               560, 140,
+               color=(10, 10, 30), alpha=230)
+
+    draw_text(screen,
+              "Name this track",
+              22, (180, 180, 200),
+              s.screen_width // 2,
+              s.screen_height // 2 - 36,
+              bold=False)
+
+    # Blinking cursor — toggles every 0.5s
+    cursor = "|" if int(time.time() * 2) % 2 == 0 else " "
+
+    # Display the typed name, or a placeholder when empty
+    display = (name_buffer + cursor) if name_buffer else (f"custom_track_{cursor}")
+    color   = s.white if name_buffer else (100, 100, 120)
+
+    draw_text(screen,
+              display,
+              28, color,
+              s.screen_width // 2,
+              s.screen_height // 2 + 4)
+
+    draw_text(screen,
+              "RETURN  confirm     ESC  use default name     BACKSPACE  delete",
+              13, (90, 90, 110),
+              s.screen_width // 2,
+              s.screen_height // 2 + 46,
+              bold=False)
