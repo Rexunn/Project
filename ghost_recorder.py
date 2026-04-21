@@ -152,6 +152,17 @@ def save_ghost(tid: str,
 
     return is_new_record
 
+def get_leaderboard(tid: str) -> list:
+    """
+    Return the leaderboard list for this track, or [] if no file exists.
+
+    dict: {"name": str, "turns": int, "date": str}.
+    """
+    data = load_ghost(tid)
+    if data is None:
+        return []
+    return data.get("leaderboard", [])
+
 
 # ── Active recorder ───────────────────────────────────────────────────────────
 
