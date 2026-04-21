@@ -90,14 +90,12 @@ class AStarSolver:
     def heuristic(self, state) -> float:
         """
         Admissible Manhattan heuristic for a single-target search.
-        Dividing by 3.0 ensures h(n) <= h*(n) because the maximum speed
-        achievable from rest in 1 turn is ±2, giving a minimum of ⌈d/3⌉
-        turns to cover distance d from a standing start.
+        Dividing by 10 ensures h(n) <= h*(n)
         """
         if not self.current_goals:
             return 0.0
         return min(abs(state.x - gx) + abs(state.y - gy)
-                   for gx, gy in self.current_goals) / 3.0
+                   for gx, gy in self.current_goals) / 10.0
 
     # ── Original single-target searches (unchanged — used by BFS pipeline) ────
 
