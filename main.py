@@ -1009,8 +1009,8 @@ def main():
                         if racer.type == "PLAYER":
                             for obs in obstacles:
                                 if (obs.active
-                                        and obs.x == new_state.x
-                                        and obs.y == new_state.y):
+                                         nd abs(obs.x - new_state.x) <= 1
+                                        and abs(obs.y - new_state.y) <= 1):
                                     if obs.type == "OilSpill":
                                         oil_slick_turns = s.OIL_SLICK_TURNS
                                         print("[OIL] Player hit an oil spill!")
