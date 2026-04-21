@@ -1050,6 +1050,7 @@ def main():
                     player_ax       = 0
                     player_ay       = 0
                     turn_start_time = time.time()
+                    player_racer.wrong_way = False  # reset wrong-way status each turn
 
             # ── Drawing ───────────────────────────────────────────────────────
 
