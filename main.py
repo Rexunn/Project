@@ -111,7 +111,8 @@ def cpu_medium_move(engine, state, target):
     moves = engine.get_legal_moves(state)
     if not moves:
         return None
-    return min(moves, key=lambda m: abs(m.x - target[0]) + abs(m.y - target[1]))
+        #Chebyshev distance for admissibility
+    return min(moves, key=lambda m: max(abs(m.x - target[0]), abs(m.y - target[1])))
 
 
 def sort_checkpoints_by_circuit(clusters, grid):

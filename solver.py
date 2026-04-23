@@ -76,7 +76,7 @@ class AStarSolver:
             return 0.0
         min_dist = float('inf')
         for (gx, gy) in self.current_goals:
-            # --- CHEBYSHEV DISTANCE ---
+            # CHEBYSHEV DISTANCE
             dist = max(abs(state.x - gx), abs(state.y - gy))
             if dist < min_dist: 
                 min_dist = dist
