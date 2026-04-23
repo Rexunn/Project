@@ -342,6 +342,7 @@ def reset_racers(racers, start_state):
         r.path_index            = 0
         r.ghost_positions       = []
         r.grace_turns_remaining = 0   
+        r.last_checkpoint_pos = None
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
 def compute_cp_forward_vectors(checkpoint_clusters: list,
