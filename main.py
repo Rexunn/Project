@@ -155,6 +155,7 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
     if tile >= 4 and nxt < len(checkpoint_clusters):
         if (x, y) in checkpoint_clusters[nxt]:
             racer.checkpoints_cleared.add(nxt)
+            racer.last_checkpoint_pos = CarState(x, y, 0, 0) #record exact tile
             print(f"{racer.name} CP {nxt+1}/{len(checkpoint_clusters)}")
 
     # FIX: skip finish detection during respawn grace window
@@ -1019,6 +1020,11 @@ def main():
                             else:
                                 saved_laps              = racer.laps_completed
                                 saved_cps               = set(racer.checkpoints_cleared)
+                                respawn_state = (
+                                    racer.last_checkpoint_pos
+                                    if racer.last_checkpoint_pos is not None
+                                    else start_state
+                                )
                                 racer.state             = start_state
                                 racer.laps_completed    = saved_laps
                                 racer.checkpoints_cleared = saved_cps
