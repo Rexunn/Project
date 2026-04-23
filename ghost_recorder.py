@@ -16,6 +16,7 @@ import os
 from datetime import datetime, timezone
 
 GHOST_DIR = "ghosts"
+LEADERBOARD_MAX = 5
 
 
 # ── Track identification ───────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ def load_ghost(tid: str) -> dict | None:
         return None
     try:
         with open(path, "r") as f:
-            return json.load(f)
+            data = json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         print(f"[GHOST] Could not load {path}: {e}")
         return None

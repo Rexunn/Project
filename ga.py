@@ -15,21 +15,21 @@ class Chromosome:
     A racing circuit defined by a loop of waypoints.
     The grid is built from those waypoints using Catmull-Rom splines.
 
-    Commit 8: accepts carve_radius and jitter from the GA sharpness preset
+    accepts carve_radius and jitter from the GA sharpness preset
     so the track shape reflects the user's selection on the GA_SETUP screen.
 
-    Grid values: 0=wall, 1=road, 2=start, 3=finish, 4+=checkpoint
+    Grid values: 0=wall, 1=road, 2=start, 3=finish, 4=checkpoint
     """
 
     def __init__(self, cols: int, rows: int,
-                 num_waypoints: int = 6,
+                 num_waypoints: int = 8,
                  carve_radius:  int = 2,
-                 jitter:        int = 4):
+                 jitter:        int = 2):
         self.cols          = cols
         self.rows          = rows
         self.num_waypoints = num_waypoints
-        self.carve_radius  = carve_radius   # Commit 8: road-corridor width
-        self.jitter        = jitter         # Commit 8: per-waypoint random offset
+        self.carve_radius  = carve_radius   # road-corridor width
+        self.jitter        = jitter         # per-waypoint random offset
         self.waypoints: list   = []
         self.grid:      list   = []
         self.fitness:   float  = 0
@@ -108,8 +108,8 @@ class Chromosome:
             [(self._curvature_score(i), i) for i in candidates]
         )   # ascending: index 0 is the flattest (best) candidate
 
-        # How many checkpoints to place. At least 1, at most all candidates.
-        n_checkpoints = max(1, math.ceil(len(candidates) / 2))
+        # How many checkpoints to place. At least 2, at most all candidates.
+        n_checkpoints = max(2, math.ceil(len(candidates) / 2))
 
         # Take the n_checkpoints flattest candidates, then restore circuit order.
         chosen = sorted(idx for _, idx in scored[:n_checkpoints])
@@ -189,7 +189,7 @@ class GeneticAlgorithm:
     """
     Evolves a population of loop-track Chromosomes.
 
-    Commit 8: accepts num_waypoints and sharpness from the GA_SETUP screen.
+    accepts num_waypoints and sharpness from the GA_SETUP screen.
     These are forwarded to every Chromosome created during init and crossover.
     The sharpness preset also controls the mutation variance in mutate().
     """

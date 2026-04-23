@@ -92,10 +92,18 @@ def run_both_solvers(grid, weather="Sunny"):
     if not cps:
         return None
 
-    astar_path, astar_exp, astar_time = solver.solve(
-        start, cps, use_bfs=False)
-    bfs_path,   bfs_exp,   bfs_time   = solver.solve(
-        start, cps, use_bfs=True)
+  # --- ISOLATED ADMISSIBILITY TEST (Segment 1 Only) ---
+    target_cluster = cps[0]
+
+    # A* run
+    t0 = time.time()
+    astar_path, astar_exp = solver.astar_search(start, target_cluster, avoid_tile=3)
+    astar_time = time.time() - t0
+
+    # BFS run
+    t0 = time.time()
+    bfs_path, bfs_exp = solver.bfs_search(start, target_cluster, avoid_tile=3)
+    bfs_time = time.time() - t0
 
     if not astar_path or not bfs_path:
         return None
@@ -109,7 +117,7 @@ def run_both_solvers(grid, weather="Sunny"):
         "bfs_time_ms":      round(bfs_time * 1000, 2),
         "node_ratio":       round(len(astar_exp) / max(1, len(bfs_exp)), 4),
         "weather":          weather,
-        "num_cps":          len(cps),
+        "num_cps":          1, #only testing first segment
     }
 
 

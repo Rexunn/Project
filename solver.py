@@ -70,19 +70,12 @@ class AStarSolver:
     def heuristic(self, state) -> float:
         """
         Admissible Manhattan heuristic for a single-target search.
-        Dividing by 5 ensures h(n) <= h*(n)
+        Dividing by  ensures h(n) <= h*(n)
         """
         if not self.current_goals:
             return 0.0
-        min_dist = float('inf')
-        for (gx, gy) in self.current_goals:
-            # CHEBYSHEV DISTANCE
-            dist = max(abs(state.x - gx), abs(state.y - gy))
-            if dist < min_dist: 
-                min_dist = dist
-                
-        # admissible because max velocity is 5
-        return min_dist / 5.0
+        return min(abs(state.x - gx) + abs(state.y - gy)
+                   for gx, gy in self.current_goals) / 3.0
 
     # ── Original single-target searches (unchanged — used by BFS pipeline) ────
 
