@@ -50,6 +50,7 @@ class Racer:
 
         self.grace_turns_remaining: int = 0
         self.wrong_way: bool = False
+        self.last_checkpoint_pos: "CarState" | None = None
 
         # ── Lap tracking ─────────────────────────────────────────────────────
         self.laps_completed: int = 0
