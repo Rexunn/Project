@@ -1382,6 +1382,15 @@ def _load_ghost_car(tid: str) -> GhostCar | None:
     data = load_ghost(tid)
     return GhostCar(data) if data else None
 
+def _is_top5_time(tid: str, turns: int) -> bool:
+    """Return True if `turns` would earn a place in the top-5 leaderboard."""
+    if not tid:
+        return False
+    board = get_leaderboard(tid)   # already imported from ghost_recorder
+    if len(board) < 5:
+        return True                # fewer than 5 entries — always qualifies
+    return turns < board[-1]["turns"]
+
 
 if __name__ == "__main__":
     main()
