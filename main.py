@@ -55,10 +55,8 @@ from ui import (
     draw_weather_badge,                                     
     draw_wrong_way_banner,
     draw_static_path_preview,
-    draw_naming_overlay,
-    draw_save_track_prompt,
-    draw_track_leaderboard,
-    draw_win_name_prompt,
+    draw_naming_overlay,   
+    draw_track_leaderboard,                              
 )
 
 
@@ -496,23 +494,6 @@ def main():
     tid:            str             = ""
     new_record:     bool            = False
 
-    # ── Post-race save flow (Task 1) ──────────────────────────────────────────
-    # win_phase drives a mini-state-machine layered INSIDE the WIN state so
-    # GameStateManager's topology never needs to change.
-    #
-    #   "RESULT"       — standard result screen; R / G / M keys active
-    #   "NAMING"       — top-5 run detected; player types a leaderboard name
-    #   "SAVE_TRACK"   — player chooses Y (save track + record) or N (discard)
-    #   "TRACK_NAMING" — player types a filename for the track JSON
-    #
-    # Ghost positions and turns are buffered here and only written to disk
-    # in the TRACK_NAMING → confirm path, so ephemeral GA tracks stay clean.
-    win_phase:               str  = "RESULT"
-    win_player_name:         str  = ""   # confirmed leaderboard display name
-    win_name_buffer:         str  = ""   # characters being typed in NAMING
-    pending_ghost_positions: list = []   # buffered; saved only on track-save
-    pending_ghost_turns:     int  = 0
-
     # ── Track naming ───────────────────────────────────────────────
     naming_mode:       bool = False   # True while player is typing a track name
     track_name_buffer: str  = ""      # characters typed so far
@@ -665,96 +646,14 @@ def main():
                     elif event.key == pygame.K_RIGHT: player_ax = min( lim, player_ax + 1)
                     elif event.key == pygame.K_SPACE: race_phase = "EXECUTE"
 
-                # ── WIN ───────────────────────────────────────────────────────
-                elif gsm == GameState.WIN:
-
-                    if win_phase == "NAMING":
-                        # Text input: leaderboard display name
-                        if event.key == pygame.K_RETURN:
-                            clean           = win_name_buffer.strip() or "You"
-                            win_player_name = clean[:20]
-                            win_phase       = "SAVE_TRACK"
-                            win_name_buffer = ""
-                        elif event.key == pygame.K_ESCAPE:
-                            win_phase       = "RESULT"
-                            win_name_buffer = ""
-                        elif event.key == pygame.K_BACKSPACE:
-                            win_name_buffer = win_name_buffer[:-1]
-                        else:
-                            ch = event.unicode
-                            if ch and ch.isprintable() and len(win_name_buffer) < 20:
-                                win_name_buffer += ch
-
-                    elif win_phase == "SAVE_TRACK":
-                        # Y → open track-naming prompt; N/ESC → discard
-                        if event.key == pygame.K_y:
-                            win_phase         = "TRACK_NAMING"
-                            track_name_buffer = ""
-                        elif event.key in (pygame.K_n, pygame.K_ESCAPE):
-                            win_phase = "RESULT"   # nothing saved
-
-                    elif win_phase == "TRACK_NAMING":
-                        # Text input: track filename
-                        if event.key == pygame.K_RETURN:
-                            clean = track_name_buffer.strip().replace(" ", "_")
-                            fname = (f"{clean}.json"
-                                     if clean
-                                     else f"custom_track_{int(time.time())}.json")
-                            if track:
-                                track.save_to_file(fname)
-                                saved_maps = sorted(
-                                    f for f in os.listdir(".")
-                                    if f.endswith(".json"))
-                            # Commit ghost + leaderboard now that track is saved
-                            new_record = save_ghost(
-                                tid,
-                                pending_ghost_positions,
-                                pending_ghost_turns,
-                                racer_name=win_player_name or "You",
-                            )
-                            win_phase         = "RESULT"
-                            track_name_buffer = ""
-                        elif event.key == pygame.K_ESCAPE:
-                            win_phase         = "RESULT"
-                            track_name_buffer = ""
-                        elif event.key == pygame.K_BACKSPACE:
-                            track_name_buffer = track_name_buffer[:-1]
-                        else:
-                            ch = event.unicode
-                            if ch and ch.isprintable() and len(track_name_buffer) < 40:
-                                track_name_buffer += ch
-
-                    else:
-                        # RESULT phase: navigation keys
-                        if event.key == pygame.K_r:
-                            reset_racers(racers, start_state)
-                            ghost_recorder.reset()
-                            ghost_car        = _load_ghost_car(tid)
-                            obstacles        = generate_obstacles(track.grid)
-                            oil_slick_turns  = 0
-                            current_turn     = 0
-                            race_phase       = "INPUT"
-                            player_ax        = 0
-                            player_ay        = 0
-                            new_record       = False
-                            show_dev_stats   = False
-                            win_phase        = "RESULT"
-                            gsm.transition(GameState.PRE_RACE)
-                        elif event.key == pygame.K_g:
-                            win_phase = "RESULT"
-                            gsm.transition(GameState.GENERATING)
-                        elif event.key == pygame.K_m:
-                            win_phase = "RESULT"
-                            gsm.transition(GameState.BOOT_MENU)
-
-                # ── LOSE ──────────────────────────────────────────────────────
-                elif gsm == GameState.LOSE:
+                # ── WIN / LOSE ─────────────────────────────────────────────────
+                elif gsm.is_in(GameState.WIN, GameState.LOSE):
                     if event.key == pygame.K_r:
                         reset_racers(racers, start_state)
                         ghost_recorder.reset()
                         ghost_car        = _load_ghost_car(tid)
-                        obstacles        = generate_obstacles(track.grid)
-                        oil_slick_turns  = 0
+                        obstacles        = generate_obstacles(track.grid)  
+                        oil_slick_turns  = 0                               
                         current_turn     = 0
                         race_phase       = "INPUT"
                         player_ax        = 0
@@ -1127,7 +1026,7 @@ def main():
                                     if racer.last_checkpoint_pos is not None
                                     else start_state
                                 )
-                                racer.state             = respawn_state   # Task 7 fix
+                                racer.state             = start_state
                                 racer.laps_completed    = saved_laps
                                 racer.checkpoints_cleared = saved_cps
                                 racer.grace_turns_remaining = 3
@@ -1175,14 +1074,9 @@ def main():
                                         if racer.lives <= 0:
                                             racer.crashed = True
                                         else:
-                                            saved_laps    = racer.laps_completed
-                                            saved_cps     = set(racer.checkpoints_cleared)
-                                            respawn_state = (
-                                                racer.last_checkpoint_pos
-                                                if racer.last_checkpoint_pos is not None
-                                                else start_state
-                                            )
-                                            racer.state               = respawn_state  # Task 7 fix
+                                            saved_laps  = racer.laps_completed
+                                            saved_cps   = set(racer.checkpoints_cleared)
+                                            racer.state = start_state
                                             racer.laps_completed      = saved_laps
                                             racer.checkpoints_cleared = saved_cps
                                             racer.grace_turns_remaining = 3
@@ -1197,15 +1091,8 @@ def main():
 
                 # End conditions
                 if player_racer.finished:
-                    # Buffer the run data; it is only committed to disk
-                    # if the player saves the track in the post-race flow.
-                    pending_ghost_positions = list(ghost_recorder.positions)
-                    pending_ghost_turns     = current_turn
-                    is_top5                 = _is_top5_time(tid, current_turn)
-                    win_phase               = "NAMING" if is_top5 else "RESULT"
-                    win_name_buffer         = ""
-                    win_player_name         = ""
-                    new_record              = False
+                    new_record = save_ghost(tid, ghost_recorder.positions,
+                                            current_turn, racer_name="You")
                     gsm.transition(GameState.WIN)
                 elif player_racer.crashed or current_turn >= s.MAX_TURNS:
                     gsm.transition(GameState.LOSE)
@@ -1309,26 +1196,16 @@ def main():
                     screen, board,
                     cx=s.screen_width // 2,
                     cy=s.screen_height // 2 + 46)
-
-            # Navigation hints and phase overlays — mutually exclusive
-            if win_phase == "RESULT":
-                pygame.draw.line(screen, (40, 80, 40),
-                                (150, s.screen_height // 2 + 30),
-                                (s.screen_width - 150, s.screen_height // 2 + 30), 1)
-                draw_hint_row(screen, "R", "Race again (same track)",
-                            s.screen_width // 2, s.screen_height // 2 + 60,
-                            highlight=True)
-                draw_hint_row(screen, "G", "Generate a new track",
-                            s.screen_width // 2, s.screen_height // 2 + 95)
-                draw_hint_row(screen, "M", "Main menu",
-                            s.screen_width // 2, s.screen_height // 2 + 130)
-            elif win_phase == "NAMING":
-                draw_win_name_prompt(screen, win_name_buffer,
-                                     pending_ghost_turns)
-            elif win_phase == "SAVE_TRACK":
-                draw_save_track_prompt(screen, win_player_name)
-            elif win_phase == "TRACK_NAMING":
-                draw_naming_overlay(screen, track_name_buffer)
+            pygame.draw.line(screen, (40, 80, 40),
+                            (150, s.screen_height // 2 + 30),
+                            (s.screen_width - 150, s.screen_height // 2 + 30), 1)
+            draw_hint_row(screen, "R", "Race again (same track)",
+                        s.screen_width // 2, s.screen_height // 2 + 60,
+                        highlight=True)
+            draw_hint_row(screen, "G", "Generate a new track",
+                        s.screen_width // 2, s.screen_height // 2 + 95)
+            draw_hint_row(screen, "M", "Main menu",
+                        s.screen_width // 2, s.screen_height // 2 + 130)
 
         # ═════════════════════════════════════════════════════════════════════
         # LOSE
@@ -1363,7 +1240,7 @@ def main():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Module-level helpers (called from main but kept outside to reduce nesting)
+# Module-level helpers (called from main, kept outside to reduce nesting)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _find_start(track: Track) -> CarState:
@@ -1381,15 +1258,6 @@ def _load_ghost_car(tid: str) -> GhostCar | None:
         return None
     data = load_ghost(tid)
     return GhostCar(data) if data else None
-
-def _is_top5_time(tid: str, turns: int) -> bool:
-    """Return True if `turns` would earn a place in the top-5 leaderboard."""
-    if not tid:
-        return False
-    board = get_leaderboard(tid)   # already imported from ghost_recorder
-    if len(board) < 5:
-        return True                # fewer than 5 entries — always qualifies
-    return turns < board[-1]["turns"]
 
 
 if __name__ == "__main__":
