@@ -69,45 +69,101 @@ class AStarSolver:
 
     def heuristic(self, state) -> float:
         """
-        Admissible Manhattan heuristic for a single-target search.
-        Dividing by  ensures h(n) <= h*(n)
+        Chebyshev distance to nearest goal/max speed
         """
         if not self.current_goals:
             return 0.0
-        return min(abs(state.x - gx) + abs(state.y - gy)
-                   for gx, gy in self.current_goals) / 3.0
+        max_speed = self.engine.max_speed
+        return min(
+            max(abs(state.x - gx), abs(state.y - gy))
+            for gx, gy in self.current_goals
+        ) / max_speed
 
-    # ── Original single-target searches (unchanged — used by BFS pipeline) ────
-
+    
     def astar_search(self, start_state, target_coords: list,
                      avoid_tile: int | None = None):
-        """Direction-agnostic A* to a single target set. Used internally."""
+        """Optimised to single target set"""
+
         self.set_goals_from_list(target_coords)
         if not self.current_goals:
             return None, []
 
-        pq          = PriorityQueue()
-        pq.put((0, 0, start_state))
-        came_from   = {start_state: None}
-        cost_so_far = {start_state: 0}
-        explored    = []
-
-        while not pq.empty():
-            _, _, current = pq.get()
-            explored.append(current)
-            if (current.x, current.y) in self.current_goals:
-                return self._reconstruct_path(came_from, current), explored
-            for nxt in self.engine.get_legal_moves(current):
-                if avoid_tile is not None:
-                    if self.engine.track[nxt.y][nxt.x] == avoid_tile:
-                        continue
-                new_cost = cost_so_far[current] + 1
-                if nxt not in cost_so_far or new_cost < cost_so_far[nxt]:
-                    cost_so_far[nxt] = new_cost
-                    pq.put((new_cost + self.heuristic(nxt), 0, nxt))
-                    came_from[nxt] = current
-
-        return None, explored
+               goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
+        max_speed  = self.engine.max_speed
+        _track     = self.engine.track          # LOAD_FAST in inner loop
+        _get_moves = self.engine.get_legal_moves
+        _avoid     = avoid_tile
+        _INF       = 10 ** 9
+ 
+        # ── Bounding-box heuristic (O(1)) ────────────────────────────────────
+        xs     = [gx for gx, _ in target_coords]
+        ys     = [gy for _, gy in target_coords]
+        bx_min = min(xs);  bx_max = max(xs)
+        by_min = min(ys);  by_max = max(ys)
+ 
+        def _h(x: int, y: int) -> float:
+            """Chebyshev distance from (x,y) to nearest point in AABB / max_speed."""
+            dx = max(0, bx_min - x, x - bx_max)
+            dy = max(0, by_min - y, y - by_max)
+            return max(dx, dy) / max_speed
+ 
+        # ── Search init ───────────────────────────────────────────────────────
+        # Key: (x, y, vx, vy) — plain tuple, C-level hash, no object overhead
+        start_key = (start_state.x, start_state.y,
+                     start_state.vx, start_state.vy)
+        h0 = _h(start_state.x, start_state.y)
+ 
+        # heap entry: (f, g, counter, key)
+        # counter guarantees stable ordering when f and g are tied
+        heap      = [(h0, 0, 0, start_key)]
+        g_score   = {start_key: 0}
+        came_from = {start_key: None}
+        explored  = []          # list of raw tuple keys (converted at return)
+        counter   = 1
+ 
+        _heappush = heapq.heappush
+        _heappop  = heapq.heappop
+ 
+        while heap:
+            f, g, _, cur = _heappop(heap)
+ 
+            # ── Lazy deletion: skip stale entries in O(1) ──────────────────
+            if g > g_score.get(cur, _INF):
+                continue
+ 
+            explored.append(cur)
+            x, y, vx, vy = cur
+ 
+            # ── Goal test ──────────────────────────────────────────────────
+            if (x, y) in goal_set:
+                # Reconstruct as list[CarState]
+                path = []
+                node = cur
+                while node is not None:
+                    path.append(CarState(node[0], node[1], node[2], node[3]))
+                    node = came_from[node]
+                path.reverse()
+                expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
+                return path, expl
+ 
+            # ── Expand ────────────────────────────────────────────────────
+            proxy = CarState(x, y, vx, vy)
+            for nxt in _get_moves(proxy):
+                nx, ny   = nxt.x,  nxt.y
+                nvx, nvy = nxt.vx, nxt.vy
+                if _avoid is not None and _track[ny][nx] == _avoid:
+                    continue
+                nxt_key = (nx, ny, nvx, nvy)
+                new_g   = g + 1
+                if new_g < g_score.get(nxt_key, _INF):
+                    g_score[nxt_key]   = new_g
+                    came_from[nxt_key] = cur
+                    _heappush(heap,
+                               (new_g + _h(nx, ny), new_g, counter, nxt_key))
+                    counter += 1
+ 
+        expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
+        return None, expl
 
     def bfs_search(self, start_state, target_coords: list,
                    avoid_tile: int | None = None):
