@@ -1,35 +1,28 @@
 """
 solver.py
 ---------
-A* and BFS solvers for the racetrack problem.
 
 """
 
-from queue import PriorityQueue
+import heapq
 from car import CarState
 import time
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Augmented state for checkpoint-ordered pathfinding
+# OrderedCarState  
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class OrderedCarState:
     """
-    (x, y, vx, vy, cp_idx) — extends CarState with the index of the
-    next required checkpoint.
-
-    cp_idx == 0               car must clear checkpoints[0] next
-    cp_idx == len(clusters)   all checkpoints cleared; car must reach finish
-
+    (x, y, vx, vy, cp_idx) — extends CarState with the index of the next
+    required checkpoint.
     """
     __slots__ = ('x', 'y', 'vx', 'vy', 'cp_idx')
 
     def __init__(self, x: int, y: int, vx: int, vy: int, cp_idx: int = 0):
-        self.x      = x
-        self.y      = y
-        self.vx     = vx
-        self.vy     = vy
+        self.x      = x;  self.y      = y
+        self.vx     = vx; self.vy     = vy
         self.cp_idx = cp_idx
 
     def __eq__(self, other) -> bool:
@@ -51,7 +44,7 @@ class OrderedCarState:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Solver
+# AStarSolver
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class AStarSolver:
@@ -62,15 +55,16 @@ class AStarSolver:
         self.rows   = engine.rows
         self.current_goals: list = []
 
-    # ── Legacy helpers (used internally and for unit tests) ───────────────────
+    # ── Heuristic (single-target) ───────────────────────────
 
     def set_goals_from_list(self, coords_list: list) -> None:
         self.current_goals = coords_list
 
     def heuristic(self, state) -> float:
         """
-        Chebyshev distance to nearest goal/max speed
-        """
+        Chebyshev distance to nearest goal tile / max_speed.
+
+       """
         if not self.current_goals:
             return 0.0
         max_speed = self.engine.max_speed
@@ -79,40 +73,43 @@ class AStarSolver:
             for gx, gy in self.current_goals
         ) / max_speed
 
-    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Single-target A*  (used by GA fitness)
+    # ═══════════════════════════════════════════════════════════════════════════
+
     def astar_search(self, start_state, target_coords: list,
                      avoid_tile: int | None = None):
-        """Optimised to single target set"""
-
-        self.set_goals_from_list(target_coords)
-        if not self.current_goals:
+        """
+        Optimised A* to a single target set.
+        """
+        if not target_coords:
             return None, []
 
-               goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
+        goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
         max_speed  = self.engine.max_speed
         _track     = self.engine.track          # LOAD_FAST in inner loop
         _get_moves = self.engine.get_legal_moves
         _avoid     = avoid_tile
         _INF       = 10 ** 9
- 
+
         # ── Bounding-box heuristic (O(1)) ────────────────────────────────────
         xs     = [gx for gx, _ in target_coords]
         ys     = [gy for _, gy in target_coords]
         bx_min = min(xs);  bx_max = max(xs)
         by_min = min(ys);  by_max = max(ys)
- 
+
         def _h(x: int, y: int) -> float:
             """Chebyshev distance from (x,y) to nearest point in AABB / max_speed."""
             dx = max(0, bx_min - x, x - bx_max)
             dy = max(0, by_min - y, y - by_max)
             return max(dx, dy) / max_speed
- 
+
         # ── Search init ───────────────────────────────────────────────────────
         # Key: (x, y, vx, vy) — plain tuple, C-level hash, no object overhead
         start_key = (start_state.x, start_state.y,
                      start_state.vx, start_state.vy)
         h0 = _h(start_state.x, start_state.y)
- 
+
         # heap entry: (f, g, counter, key)
         # counter guarantees stable ordering when f and g are tied
         heap      = [(h0, 0, 0, start_key)]
@@ -120,20 +117,20 @@ class AStarSolver:
         came_from = {start_key: None}
         explored  = []          # list of raw tuple keys (converted at return)
         counter   = 1
- 
+
         _heappush = heapq.heappush
         _heappop  = heapq.heappop
- 
+
         while heap:
             f, g, _, cur = _heappop(heap)
- 
+
             # ── Lazy deletion: skip stale entries in O(1) ──────────────────
             if g > g_score.get(cur, _INF):
                 continue
- 
+
             explored.append(cur)
             x, y, vx, vy = cur
- 
+
             # ── Goal test ──────────────────────────────────────────────────
             if (x, y) in goal_set:
                 # Reconstruct as list[CarState]
@@ -145,7 +142,7 @@ class AStarSolver:
                 path.reverse()
                 expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
                 return path, expl
- 
+
             # ── Expand ────────────────────────────────────────────────────
             proxy = CarState(x, y, vx, vy)
             for nxt in _get_moves(proxy):
@@ -161,45 +158,50 @@ class AStarSolver:
                     _heappush(heap,
                                (new_g + _h(nx, ny), new_g, counter, nxt_key))
                     counter += 1
- 
+
         expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
         return None, expl
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Single-target BFS  (used for metric comparison)
+    # ═══════════════════════════════════════════════════════════════════════════
+
     def bfs_search(self, start_state, target_coords: list,
                    avoid_tile: int | None = None):
-        """Uninformed BFS expressed as uniform cost Dijkstra over the same state space.  Used for metric comparison only."""
-      
-        if not self.target_coords:
+        """
+        Uninformed BFS expressed as uniform-cost Dijkstra via heapq
+        """
+        if not target_coords:
             return None, []
 
-goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
+        goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
         _track     = self.engine.track
         _get_moves = self.engine.get_legal_moves
         _avoid     = avoid_tile
         _INF       = 10 ** 9
- 
+
         start_key  = (start_state.x, start_state.y,
                       start_state.vx, start_state.vy)
- 
+
         # heap entry: (g, counter, key) — no heuristic term
         heap      = [(0, 0, start_key)]
         g_score   = {start_key: 0}
         came_from = {start_key: None}
         explored  = []
         counter   = 1
- 
+
         _heappush = heapq.heappush
         _heappop  = heapq.heappop
- 
+
         while heap:
             g, _, cur = _heappop(heap)
- 
+
             if g > g_score.get(cur, _INF):
                 continue
- 
+
             explored.append(cur)
             x, y, vx, vy = cur
- 
+
             if (x, y) in goal_set:
                 path = []
                 node = cur
@@ -209,7 +211,7 @@ goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
                 path.reverse()
                 expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
                 return path, expl
- 
+
             proxy = CarState(x, y, vx, vy)
             for nxt in _get_moves(proxy):
                 nx, ny   = nxt.x,  nxt.y
@@ -223,32 +225,21 @@ goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
                     came_from[nxt_key] = cur
                     _heappush(heap, (new_g, counter, nxt_key))
                     counter += 1
- 
+
         expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
         return None, expl
 
-    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Checkpoint-ordered A*  (main race solver)
+    # ═══════════════════════════════════════════════════════════════════════════
+
     def _heuristic_ordered(self, state: OrderedCarState,
                             checkpoint_clusters: list,
                             finish_coords: list,
                             num_cps: int) -> float:
         """
-        Admissible heuristic for the augmented state space.
-
-        Points toward checkpoint_clusters[state.cp_idx] while checkpoints
-        remain, then toward the nearest finish tile.
-
-        Admissibility proof (augmented case)
-        -------------------------------------
-        Let h*(n) = true optimal turns from n to goal in the AUGMENTED space.
-        The augmented space only adds checkpoint constraints — it cannot make
-        any path shorter than the unconstrained minimum.  Therefore:
-
-            h_ordered(n) = dist_to_next_target / 3.0
-                         <= unconstrained_h*(n)
-                         <= augmented_h*(n)
-
-        Admissibility is preserved by transitivity.
+        Legacy interface retained for any external callers.
+        astar_search_ordered() — call that method directly for performance.
         """
         if state.cp_idx < num_cps:
             cluster = checkpoint_clusters[state.cp_idx]
@@ -264,86 +255,129 @@ goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
                               checkpoint_clusters: list,
                               finish_coords: list):
         """
-        Single-pass A* over the augmented state space (x, y, vx, vy, cp_idx).
+        Optimised single-pass A* over the augmented 5-D state space
+        (x, y, vx, vy, cp_idx).
 
-        Checkpoint advancement
-        ----------------------
-        When the successor position (nx, ny) falls inside
-        cp_sets[current.cp_idx], the successor is created with
-        cp_idx + 1, recording that checkpoint as cleared.
-
-        Hard finish-line constraint
-        ---------------------------
-        Finish tiles (grid value 3) are BLOCKED as long as
-        cp_idx < num_cps.  This is the single-state equivalent of the
-        old avoid_tile=3 parameter, extended to cover the whole search.
-
-        Why this fixes the "wrong-way" bug
-        -----------------------------------
-        Going backwards around the circuit never advances cp_idx — the
-        car would encounter future checkpoints (indices > cp_idx), not the
-        current target.  The heuristic then pulls the search toward the
-        correct next checkpoint, making the backwards path strictly more
-        expensive.  The solver cannot short-circuit to the finish without
-        clearing all checkpoints first.
-
-        Returns (path_as_car_states, explored_as_car_states) or (None, explored).
-        The return type matches what main.py expects from solve().
         """
         num_cps    = len(checkpoint_clusters)
-        finish_set = {(int(x), int(y)) for x, y in finish_coords}
+        max_speed  = self.engine.max_speed
+        _track     = self.engine.track          # ← LOAD_FAST in inner loop
+        _get_moves = self.engine.get_legal_moves
+        _INF       = 10 ** 9
 
-        # Pre-build O(1) membership sets — avoids linear scans per expansion
+        # ── Pre-computation (once, before the hot loop) ───────────────────────
+
+        finish_set = frozenset((int(x), int(y)) for x, y in finish_coords)
+        if not finish_set:
+            print("WARNING: No finish line found on this track.")
+            return None, []
+
+        # O(1) membership sets for checkpoint advancement
         cp_sets = [
-            {(int(cx), int(cy)) for cx, cy in cluster}
+            frozenset((int(cx), int(cy)) for cx, cy in cluster)
             for cluster in checkpoint_clusters
         ]
 
-        start = OrderedCarState.from_car_state(start_state, cp_idx=0)
-        pq          = PriorityQueue()
-        counter     = 0
-        pq.put((0, counter, start))
-        came_from   = {start: None}
-        cost_so_far = {start: 0}
-        explored    = []
+        # Axis-aligned bounding box per checkpoint + finish
+        # Allows O(1) admissible heuristic without scanning cluster tiles
+        def _bbox(coords):
+            xs = [x for x, _ in coords]
+            ys = [y for _, y in coords]
+            return (min(xs), max(xs), min(ys), max(ys))
 
-        while not pq.empty():
-            _, _, current = pq.get()
-            explored.append(current.to_car_state())
+        cp_bbox  = [_bbox(cluster) for cluster in checkpoint_clusters]
+        fin_bbox = _bbox(finish_coords)
+
+        # Tie-breaking multiplier: (1+ε) biases equal-f nodes toward goal.
+        TIE = 1.0 + 1e-4
+
+        def _h(x: int, y: int, cp_idx: int) -> float:
+            """
+            Admissible O(1) heuristic with tie-breaking
+            """
+            bx_min, bx_max, by_min, by_max = (
+                cp_bbox[cp_idx] if cp_idx < num_cps else fin_bbox)
+            dx = max(0, bx_min - x, x - bx_max)
+            dy = max(0, by_min - y, y - by_max)
+            return max(dx, dy) / max_speed * TIE
+
+        # ── Search initialisation ─────────────────────────────────────────────
+        # State key: (x, y, vx, vy, cp_idx) — plain 5-tuple
+        sx, sy   = start_state.x, start_state.y
+        svx, svy = start_state.vx, start_state.vy
+        start    = (sx, sy, svx, svy, 0)
+        h0       = _h(sx, sy, 0)
+
+        # heap entry: (f, g, counter, state_key)
+        # counter guarantees stable ordering when f and g are identical,
+        # making tie-breaking deterministic and preventing tuple comparison
+        # from ever reaching the state key itself.
+        heap      = [(h0, 0, 0, start)]
+        g_score   = {start: 0}
+        came_from = {start: None}
+        explored  = []      # raw tuple states; converted to CarState at return
+        counter   = 1
+
+        _heappush = heapq.heappush   # bind to local for LOAD_FAST
+        _heappop  = heapq.heappop
+
+        # ── Main search loop ──────────────────────────────────────────────────
+        while heap:
+            f, g, _, cur = _heappop(heap)
+
+            # The cost stored in g_score is always the best known cost; if the
+            # popped g is larger, this entry is outdated and can be skipped.
+            if g > g_score.get(cur, _INF):
+                continue
+
+            x, y, vx, vy, cp_idx = cur
+            explored.append(cur)
 
             # ── Goal test ─────────────────────────────────────────────────────
-            if (current.cp_idx == num_cps
-                    and (current.x, current.y) in finish_set):
-                return (self._reconstruct_ordered_path(came_from, current),
-                        explored)
+            if cp_idx == num_cps and (x, y) in finish_set:
+                # Back-trace the came_from chain
+                path = []
+                node = cur
+                while node is not None:
+                    path.append(CarState(node[0], node[1], node[2], node[3]))
+                    node = came_from[node]
+                path.reverse()
+                expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
+                return path, expl
 
-            # ── Expand ────────────────────────────────────────────────────────
-            base = current.to_car_state()
-            for nxt_car in self.engine.get_legal_moves(base):
-                nx, ny = nxt_car.x, nxt_car.y
-                tile   = self.engine.track[ny][nx]
+            # ── Expand: generate successors ───────────────────────────────────
+            proxy = CarState(x, y, vx, vy)  # temporary proxy for get_legal_moves
+            for nxt_car in _get_moves(proxy):
+                nx, ny   = nxt_car.x,  nxt_car.y
+                nvx, nvy = nxt_car.vx, nxt_car.vy
 
-                # Determine cp_idx advancement
-                new_cp = current.cp_idx
+                tile   = _track[ny][nx]   # LOAD_FAST — bound above the loop
+
+                # Determine cp_idx advancement for this successor
+                new_cp = cp_idx
                 if new_cp < num_cps and (nx, ny) in cp_sets[new_cp]:
                     new_cp += 1
 
-                # Hard constraint: finish is invisible until all CPs cleared
+                # Hard finish constraint: finish is invisible until all CPs cleared
                 if tile == 3 and new_cp < num_cps:
                     continue
 
-                nxt = OrderedCarState(nx, ny, nxt_car.vx, nxt_car.vy, new_cp)
+                nxt   = (nx, ny, nvx, nvy, new_cp)
+                new_g = g + 1
 
-                new_cost = cost_so_far[current] + 1
-                if nxt not in cost_so_far or new_cost < cost_so_far[nxt]:
-                    cost_so_far[nxt] = new_cost
-                    h = self._heuristic_ordered(
-                        nxt, checkpoint_clusters, finish_coords, num_cps)
+                # Lazy-update: only push if this path is strictly cheaper
+                if new_g < g_score.get(nxt, _INF):
+                    g_score[nxt]   = new_g
+                    came_from[nxt] = cur
+                    h_val          = _h(nx, ny, new_cp)
+                    _heappush(heap, (new_g + h_val, new_g, counter, nxt))
                     counter += 1
-                    pq.put((new_cost + h, counter, nxt))
-                    came_from[nxt] = current
 
-        return None, explored   # unreachable track
+        # No path found (track is unsolvable from start_state)
+        expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
+        return None, expl
+
+    # ── Path reconstruction (legacy — kept for external callers) ─────────────
 
     def _reconstruct_ordered_path(self, came_from: dict,
                                    current: OrderedCarState) -> list:
@@ -356,27 +390,23 @@ goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
         path.reverse()
         return path
 
-    # ── Fixed pipeline (BFS comparison only) ──────────────────────────────────
+    # ── Fixed pipeline (BFS comparison only) ─────────────────────────────────
 
     def _solve_pipeline(self, start_state,
                          checkpoint_clusters: list,
                          finish_coords: list,
                          use_bfs: bool = True):
         """
-        Original sequential pipeline, corrected.
+        Sequential pipeline.
 
-        BUG FIXED: the finish-line hunt now runs ONCE, after ALL
-        checkpoints have been cleared — not after each individual
-        checkpoint as in the original code.
-
-        Used only for BFS comparison.  A* now uses astar_search_ordered().
+        Used exclusively for the BFS metric comparison so that both solvers
+        navigate the same checkpoint sequence.
         """
         full_path    = []
         all_explored = []
         current_start = start_state
         search = self.bfs_search if use_bfs else self.astar_search
 
-        # Phase 1: clear all checkpoints in sequence
         for idx, target_cluster in enumerate(checkpoint_clusters):
             segment, explored = search(
                 current_start, target_cluster, avoid_tile=3)
@@ -384,10 +414,9 @@ goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
             if not segment:
                 print(f"[PIPELINE] Cannot reach checkpoint {idx}.")
                 return [], all_explored
-            full_path     += segment[1:] if full_path else segment
-            current_start  = segment[-1]
+            full_path    += segment[1:] if full_path else segment
+            current_start = segment[-1]
 
-        # Phase 2: reach finish (now allowed — all CPs cleared)
         segment, explored = search(
             current_start, finish_coords, avoid_tile=None)
         all_explored.extend(explored)
@@ -397,25 +426,16 @@ goal_set   = frozenset((int(gx), int(gy)) for gx, gy in target_coords)
         full_path += segment[1:] if full_path else segment
         return full_path, all_explored
 
-    # ── Public entry point (interface unchanged) ──────────────────────────────
+    # ── Public entry point ────────────────────────────────────────────────────
 
     def solve(self, start_state, checkpoint_clusters: list,
               use_bfs: bool = False):
         """
         Compute the full optimal race path.
-
-        A* branch  -> astar_search_ordered() — augmented state space,
-                      single pass, checkpoint-ordered, no backtracking.
-        BFS branch -> _solve_pipeline()      — sequential pipeline,
-                      direction-agnostic (used only for metric comparison).
-
-        Returns (full_path, all_explored, solve_time)
-        — identical signature to the original, so main.py is unchanged.
         """
         print("--- STARTING SOLVER ---")
         start_time = time.time()
 
-        # Build finish coords once
         finish_coords = [
             (x, y)
             for y in range(self.rows)
