@@ -157,6 +157,11 @@ def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
             racer.checkpoints_cleared.add(nxt)
             racer.last_checkpoint_pos = CarState(x, y, 0, 0) #record exact tile
             print(f"{racer.name} CP {nxt+1}/{len(checkpoint_clusters)}")
+            # record checkpoint centroid for respawn
+            cl  = checkpoint_clusters[nxt]
+            cxr = sum(cx for cx, _ in cl) // len(cl)
+            cyr = sum(cy for _, cy in cl) // len(cl)
+            racer.last_checkpoint_pos = (cxr, cyr)
 
     # FIX: skip finish detection during respawn grace window
     if (tile == 3
@@ -1040,15 +1045,13 @@ def main():
                             if racer.lives <= 0:
                                 racer.crashed = True
                             else:
-                                saved_laps              = racer.laps_completed
-                                saved_cps               = set(racer.checkpoints_cleared)
-                                respawn_state = (
-                                    racer.last_checkpoint_pos
-                                    if racer.last_checkpoint_pos is not None
-                                    else start_state
-                                )
-                                racer.state             = start_state
-                                racer.laps_completed    = saved_laps
+                                saved_laps = racer.laps_completed
+                                saved_cps  = set(racer.checkpoints_cleared)
+                                rx, ry = (racer.last_checkpoint_pos
+                                          if racer.last_checkpoint_pos
+                                          else (start_state.x, start_state.y))
+                                racer.state               = CarState(rx, ry, 0, 0)
+                                racer.laps_completed      = saved_laps
                                 racer.checkpoints_cleared = saved_cps
                                 racer.grace_turns_remaining = 3
                                 respawn_flash_until = time.time() + 0.6
@@ -1097,7 +1100,10 @@ def main():
                                         else:
                                             saved_laps  = racer.laps_completed
                                             saved_cps   = set(racer.checkpoints_cleared)
-                                            racer.state = start_state
+                                            rx, ry = (racer.last_checkpoint_pos
+                                                      if racer.last_checkpoint_pos
+                                                      else (start_state.x, start_state.y))
+                                            racer.state = CarState(rx, ry, 0, 0)
                                             racer.laps_completed      = saved_laps
                                             racer.checkpoints_cleared = saved_cps
                                             racer.grace_turns_remaining = 3

@@ -56,13 +56,18 @@ class Racer:
         self.laps_completed: int = 0
         self.total_laps:     int = 1
 
-        # ── Lives (Commit 10) — 3 for player, irrelevant for CPUs ────────────
+        # ── Lives — 3 for player, irrelevant for CPUs ────────────
         self.lives:     int = s.PLAYER_LIVES if racer_type == "PLAYER" else 1
         self.max_lives: int = s.PLAYER_LIVES if racer_type == "PLAYER" else 1
 
-        # ── Ghost recording (Commit 14) ───────────────────────────────────────
+        # ── Ghost recording ───────────────────────────────────────
         # Player's position is appended here every turn during RUNNING.
         self.ghost_positions: list[tuple[int, int]] = []
+
+        # ── Checkpoint respawn (Task 2) ───────────────────────────────────────────
+        # Centroid of the last checkpoint cluster the racer crossed.
+        # None means fall back to the race start_state.
+        self.last_checkpoint_pos: tuple[int, int] | None = None
 
         # ── CPU Hard pre-computed path ────────────────────────────────────────
         self.precomputed_path: list[CarState] = []
