@@ -1246,16 +1246,19 @@ def main():
         elif gsm == GameState.WIN:
 
              # ── Post-race phase resolution ──────────────────────────
-            if post_race_phase == "CHECK":
-                post_race_is_top5 = _is_top5_time(tid, current_turn)
-                if post_race_is_top5:
-                    post_race_phase       = "NAME_INPUT"
-                    post_race_name_buffer = ""
-                else:
-                    # Not top-5: still save ghost silently with default name
-                    save_ghost(tid, ghost_recorder.positions,
-                               current_turn, racer_name="You")
-                    post_race_phase = "SAVED"
+            if post_race_is_top5:
+                post_race_phase       = "NAME_INPUT"
+                post_race_name_buffer = ""
+            else:
+                new_record      = save_ghost(tid, ghost_recorder.positions,   
+                                 current_turn, racer_name="You")
+            post_race_phase = "SAVED"
+
+            # --- "NAME_INPUT" RETURN key handler ---
+            name       = post_race_name_buffer.strip() or "You"
+            new_record = save_ghost(tid, ghost_recorder.positions,      
+                        current_turn, racer_name=name)
+            post_race_phase = "SAVED"
 
             # ── Name-input overlay ────────────────────────────────────────────
             if post_race_phase == "NAME_INPUT":
