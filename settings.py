@@ -145,3 +145,23 @@ FLASH_TEAL         = (0,  200, 180)
 TRAIL_LENGTH    = 9     # how many historic positions to store per racer
 TRAIL_MIN_ALPHA = 15    # alpha at the oldest dot
 TRAIL_MAX_ALPHA = 145   # alpha at the newest dot (just behind the racer)
+
+# ── GA Generation Flavour Texts ─────────────────────────────────────
+GA_LOADING_TEXTS = [
+    "Seeding waypoint genome...",
+    "Formulating Catmull-Rom splines...",
+    "Testing track corners...",
+    "Evaluating circuit flow...",
+    "Running A* fitness check...",
+    "Culling degenerate chromosomes...",
+    "Crossing over parent waypoints...",
+    "Applying random mutations...",
+    "Sorting population by fitness...",
+    "Checking corridor widths...",
+    "Smoothing spline tangents...",
+    "Optimising start/finish placement...",
+    "Verifying circuit closure...",
+    "Computing curvature scores...",
+    "Rewarding direction complexity...",
+    "Electing best survivor...",
+]

@@ -273,17 +273,22 @@ def get_player_place(player_racer, racers, checkpoint_clusters) -> int:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def setup_race(engine, track, start_state, screen):
-    hint = random.choice(s.LOADING_HINTS)
+    _t0 = time.time()
+
+    def _flavour():
+        """Cycle through GA_LOADING_TEXTS every 1.6 s automatically."""
+        idx = int((time.time() - _t0) / 1.6) % len(s.GA_LOADING_TEXTS)
+        return s.GA_LOADING_TEXTS[idx]
 
     def show(msg):
         screen.fill(s.dark_bg)
-        draw_text(screen, "LOADING...", 42, s.yellow,
+        draw_text(screen, "LOADING...", 42, s.FLASH_GOLD,
                   s.screen_width // 2, s.screen_height // 2 - 60)
         draw_text(screen, msg, 22, s.white,
                   s.screen_width // 2, s.screen_height // 2)
         draw_panel(screen, s.screen_width // 2, s.screen_height - 60,
                    700, 44, alpha=160)
-        draw_text(screen, hint, 16, (160, 160, 160),
+        draw_text(screen, _flavour(), 16, (160, 160, 180),
                   s.screen_width // 2, s.screen_height - 60, bold=False)
         pygame.display.flip()
         pygame.event.pump()
@@ -330,7 +335,6 @@ def setup_race(engine, track, start_state, screen):
     }
     show("Done!")
     return racers, checkpoint_clusters, race_stats, all_explored, hard_path
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Racer reset helper 
@@ -755,9 +759,11 @@ def main():
 
             def draw_ga_progress(cur_gen, max_gens, history):
                 pygame.event.pump()
+                ga_text = s.GA_LOADING_TEXTS[
+                    int(time.time() / 1.8) % len(s.GA_LOADING_TEXTS)]
                 screen.fill(s.dark_bg)
                 draw_text(screen, "EVOLVING TRACK LAYOUT",
-                          40, s.yellow, s.screen_width // 2, 80)
+                          40, s.FLASH_GOLD, s.screen_width // 2, 80)
                 draw_text(screen, f"Generation  {cur_gen} / {max_gens}",
                           28, s.white, s.screen_width // 2, 130)
                 if history:
