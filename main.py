@@ -392,10 +392,6 @@ def _compute_wrong_way(player_racer, cp_forward_vectors: list) -> bool:
     Compute whether the PLAYER racer is travelling significantly against
     the intended circuit direction.
 
-    This function must only ever be called for the PLAYER racer.
-    The assertion is intentional — it documents the invariant and will
-    catch any future refactor that accidentally passes a CPU racer.
-
     CPU racers are directionally guided through separate mechanisms:
       - CPU_EASY  : the cp_forward parameter in cpu_easy_move() filters
                     candidate moves whose velocity opposes the circuit.
@@ -512,6 +508,14 @@ def main():
     ga_waypoints:     int = s.GA_DEFAULT_WAYPOINTS
     ga_sharpness_idx: int = s.GA_DEFAULT_SHARPNESS
 
+    # ── Post-race flow ───────────────────────────────────────────────
+    # "IDLE"       — no race finished yet
+    # "CHECK"      — first WIN frame: evaluate whether top-5
+    # "NAME_INPUT" — show name-entry prompt (top-5 only)
+    # "SAVED"      — ghost/leaderboard written; show normal WIN screen
+    post_race_phase:       str  = "IDLE"
+    post_race_name_buffer: str  = ""
+    post_race_is_top5:     bool = False
     # ═════════════════════════════════════════════════════════════════════════
     # MAIN LOOP
     # ═════════════════════════════════════════════════════════════════════════
@@ -648,6 +652,23 @@ def main():
 
                 # ── WIN / LOSE ─────────────────────────────────────────────────
                 elif gsm.is_in(GameState.WIN, GameState.LOSE):
+
+                     if gsm == GameState.WIN and post_race_phase == "NAME_INPUT":
+                        if event.key == pygame.K_RETURN:
+                            name = post_race_name_buffer.strip() or "You"
+                            save_ghost(tid, ghost_recorder.positions,
+                                       current_turn, racer_name=name)
+                            post_race_phase = "SAVED"
+                        elif event.key == pygame.K_ESCAPE:
+                            post_race_phase = "SAVED"   # user declined to save
+                        elif event.key == pygame.K_BACKSPACE:
+                            post_race_name_buffer = post_race_name_buffer[:-1]
+                        else:
+                            ch = event.unicode
+                            if ch and ch.isprintable() and len(post_race_name_buffer) < 20:
+                                post_race_name_buffer += ch
+                        continue   # swallow all other keys while naming
+
                     if event.key == pygame.K_r:
                         reset_racers(racers, start_state)
                         ghost_recorder.reset()
@@ -1087,12 +1108,12 @@ def main():
                 # Ghost recording
                 if not player_racer.crashed:
                     ghost_recorder.record(player_racer.state.x,
-                                        player_racer.state.y)
+                                          player_racer.state.y)
 
                 # End conditions
                 if player_racer.finished:
-                    new_record = save_ghost(tid, ghost_recorder.positions,
-                                            current_turn, racer_name="You")
+                    # defer ghost save — handled in WIN state
+                    post_race_phase = "CHECK"
                     gsm.transition(GameState.WIN)
                 elif player_racer.crashed or current_turn >= s.MAX_TURNS:
                     gsm.transition(GameState.LOSE)
@@ -1169,6 +1190,49 @@ def main():
         # WIN
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.WIN:
+
+             # ── Post-race phase resolution ──────────────────────────
+            if post_race_phase == "CHECK":
+                post_race_is_top5 = _is_top5_time(tid, current_turn)
+                if post_race_is_top5:
+                    post_race_phase       = "NAME_INPUT"
+                    post_race_name_buffer = ""
+                else:
+                    # Not top-5: still save ghost silently with default name
+                    save_ghost(tid, ghost_recorder.positions,
+                               current_turn, racer_name="You")
+                    post_race_phase = "SAVED"
+
+            # ── Name-input overlay ────────────────────────────────────────────
+            if post_race_phase == "NAME_INPUT":
+                draw_overlay(screen, alpha=175, color=(0, 10, 0))
+                draw_text(screen, "YOU WIN  —  TOP 5 TIME!",
+                          48, s.FLASH_GOLD,
+                          s.screen_width // 2, s.screen_height // 2 - 130)
+                draw_text(screen,
+                          f"Finished in {current_turn} turns",
+                          24, s.white,
+                          s.screen_width // 2, s.screen_height // 2 - 76)
+                draw_panel(screen, s.screen_width // 2,
+                           s.screen_height // 2 - 10, 480, 120,
+                           color=(10, 10, 30), alpha=230)
+                draw_text(screen, "Enter your name for the leaderboard",
+                          18, (180, 180, 200),
+                          s.screen_width // 2, s.screen_height // 2 - 36,
+                          bold=False)
+                cursor  = "|" if int(time.time() * 2) % 2 == 0 else " "
+                display = (post_race_name_buffer + cursor) if post_race_name_buffer \
+                          else f"You{cursor}"
+                draw_text(screen, display, 30, s.white,
+                          s.screen_width // 2, s.screen_height // 2 + 4)
+                draw_text(screen,
+                          "RETURN  save name     ESC  skip     BACKSPACE  delete",
+                          13, (90, 90, 110),
+                          s.screen_width // 2, s.screen_height // 2 + 46,
+                          bold=False)
+                pygame.display.flip()
+                continue   # skip normal WIN drawing this frame
+
             draw_overlay(screen, alpha=175, color=(0, 10, 0))
             draw_text(screen, "YOU  WIN",
                     60, s.yellow, s.screen_width // 2,
@@ -1259,6 +1323,18 @@ def _load_ghost_car(tid: str) -> GhostCar | None:
     data = load_ghost(tid)
     return GhostCar(data) if data else None
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Post-race helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _is_top5_time(tid: str, turns: int) -> bool:
+    """Return True if `turns` would rank in the top-5 for this track."""
+    from ghost_recorder import get_leaderboard, LEADERBOARD_MAX
+    board = get_leaderboard(tid)
+    if len(board) < LEADERBOARD_MAX:
+        return True
+    return turns < board[-1]["turns"]
 
 if __name__ == "__main__":
     main()
