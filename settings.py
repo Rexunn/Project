@@ -140,3 +140,8 @@ FLASH_PANEL_BG     = (8,  8,  18)
 FLASH_PANEL_BORDER = (70, 70, 110)
 FLASH_GOLD         = (255, 205, 0)
 FLASH_TEAL         = (0,  200, 180)
+
+# ── Trail System  ─────────────────────────────────────────────────────
+TRAIL_LENGTH    = 9     # how many historic positions to store per racer
+TRAIL_MIN_ALPHA = 15    # alpha at the oldest dot
+TRAIL_MAX_ALPHA = 145   # alpha at the newest dot (just behind the racer)

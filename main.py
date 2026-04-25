@@ -348,6 +348,7 @@ def reset_racers(racers, start_state):
         r.ghost_positions       = []
         r.grace_turns_remaining = 0   
         r.last_checkpoint_pos = None
+        r.trail_positions         = [] 
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
 def compute_cp_forward_vectors(checkpoint_clusters: list,
@@ -1080,6 +1081,11 @@ def main():
                         racer.state = new_state
                         check_racer_progress(racer, track,
                                             checkpoint_clusters, current_turn)
+                        
+                        #trail update
+                        racer.trail_positions.append((new_state.x, new_state.y))
+                        if len(racer.trail_positions) > s.TRAIL_LENGTH:
+                            racer.trail_positions.pop(0)
 
                         #obstacle check (player only)
                         if racer.type == "PLAYER":
@@ -1151,6 +1157,18 @@ def main():
 
             #Draw obstacles beneath racers
             draw_obstacles(screen, obstacles, track.TILE_SIZE)
+
+            #fading movement trails (drawn beneath racers)
+            draw_racer_trails(screen, racers, track)
+
+            draw_active_checkpoint(screen, checkpoint_clusters,
+                                   player_racer, track.TILE_SIZE)
+            draw_checkpoint_numbers(screen, checkpoint_clusters, track.TILE_SIZE)
+            draw_obstacles(screen, obstacles, track.TILE_SIZE)
+            draw_racers(screen, racers, track)
+
+            #player triangle indicator (drawn above racers)
+            draw_player_triangle(screen, player_racer, track)
 
             draw_racers(screen, racers, track)
 
@@ -1328,6 +1346,52 @@ def _load_ghost_car(tid: str) -> GhostCar | None:
         return None
     data = load_ghost(tid)
     return GhostCar(data) if data else None
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Trail & player-marker helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def draw_racer_trails(screen, racers, track):
+    """
+    Draw a fading dot-trail behind each non-crashed racer using SRCALPHA
+    blending.  Oldest dot = low alpha, newest = high alpha.
+    """
+    ts = track.TILE_SIZE
+    n  = s.TRAIL_LENGTH
+    for racer in racers:
+        if racer.crashed or len(racer.trail_positions) < 2:
+            continue
+        total = len(racer.trail_positions)
+        for i, (tx, ty) in enumerate(racer.trail_positions):
+            t       = i / max(1, total - 1)          # 0.0 = oldest, 1.0 = newest
+            alpha   = int(s.TRAIL_MIN_ALPHA + (s.TRAIL_MAX_ALPHA - s.TRAIL_MIN_ALPHA) * t)
+            radius  = max(2, int(ts * 0.22))
+            px      = tx * ts + ts // 2
+            py      = ty * ts + ts // 2
+            surf    = pygame.Surface((radius * 2 + 2, radius * 2 + 2), pygame.SRCALPHA)
+            r_, g_, b_ = racer.color[0], racer.color[1], racer.color[2]
+            pygame.draw.circle(surf, (r_, g_, b_, alpha),
+                               (radius + 1, radius + 1), radius)
+            screen.blit(surf, (px - radius - 1, py - radius - 1))
+
+
+def draw_player_triangle(screen, player_racer, track):
+    """
+    Draw a small filled triangle indicator directly above the player circle
+    so they are immediately identifiable in a crowd of CPU racers.
+    """
+    if player_racer.crashed:
+        return
+    ts  = track.TILE_SIZE
+    px  = player_racer.state.x * ts + ts // 2
+    py  = player_racer.state.y * ts - 4          # just above the tile
+    h   = max(8, ts // 2)
+    w   = max(6, ts // 3)
+    tip    = (px,     py - h)
+    left_  = (px - w, py)
+    right_ = (px + w, py)
+    pygame.draw.polygon(screen, (255, 255, 255), [tip, left_, right_])
+    pygame.draw.polygon(screen, (20,  20,  20),  [tip, left_, right_], 1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -64,13 +64,19 @@ class Racer:
         # Player's position is appended here every turn during RUNNING.
         self.ghost_positions: list[tuple[int, int]] = []
 
-        # ── Checkpoint respawn (Task 2) ───────────────────────────────────────────
-        # Centroid of the last checkpoint cluster the racer crossed.
-        # None means fall back to the race start_state.
-        self.last_checkpoint_pos: tuple[int, int] | None = None
+       
 
         # ── CPU Hard pre-computed path ────────────────────────────────────────
         self.precomputed_path: list[CarState] = []
         self.path_index:       int            = 0
         self.explored_states:  list[CarState] = []
         self.solve_time:       float          = 0.0
+
+        # ── Checkpoint respawn ───────────────────────────────────────────
+        # Centroid of the last checkpoint cluster the racer crossed.
+        # None means fall back to the race start_state.
+        self.last_checkpoint_pos: tuple[int, int] | None = None
+
+        # ── Movement trail ───────────────────────────────────────────────
+        # Ring buffer of recent (x, y) grid positions, newest at the end.
+        self.trail_positions: list[tuple[int, int]] = []
