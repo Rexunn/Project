@@ -56,7 +56,9 @@ from ui import (
     draw_wrong_way_banner,
     draw_static_path_preview,
     draw_naming_overlay,   
-    draw_track_leaderboard,                              
+    draw_track_leaderboard,     
+    draw_tutorial_screen,  
+    draw_pause_menu,                       
 )
 
 
