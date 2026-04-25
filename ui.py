@@ -609,3 +609,91 @@ def draw_track_leaderboard(screen: pygame.Surface,
         if date:
             draw_text(screen, date, 11, (100, 100, 120),
                       cx, ry + 12, bold=False) 
+
+# ── Tutorial screen ─────────────────────────────────────────────────────────
+def draw_tutorial_screen(screen: pygame.Surface) -> None:
+    """
+    Task 7 — Full single-page tutorial in a two-column Flash layout.
+    """
+    draw_overlay(screen, alpha=200, color=(3, 3, 14))
+
+    cx = s.screen_width  // 2
+    cy = s.screen_height // 2
+
+    draw_text(screen, "HOW  TO  PLAY", 48, s.FLASH_GOLD, cx, 56)
+    pygame.draw.line(screen, s.FLASH_PANEL_BORDER,
+                     (100, 92), (s.screen_width - 100, 92), 1)
+
+    # ── Column geometry ───────────────────────────────────────────────────────
+    col_l = cx - 240
+    col_r = cx + 240
+    row_gap = 22
+    section_gap = 38
+
+    def section(title, lines, x, y):
+        """Draw a labelled section, return next y."""
+        draw_panel(screen, x, y + (len(lines) * row_gap) // 2 + 8,
+                   440, len(lines) * row_gap + 36,
+                   color=s.FLASH_PANEL_BG, alpha=200)
+        draw_text(screen, title, 17, s.FLASH_TEAL, x, y)
+        pygame.draw.line(screen, s.FLASH_PANEL_BORDER,
+                         (x - 210, y + 12), (x + 210, y + 12), 1)
+        ny = y + 26
+        for ln in lines:
+            draw_text(screen, ln, 14, (210, 210, 225), x, ny, bold=False)
+            ny += row_gap
+        return ny + section_gap - row_gap
+
+    # ── Left column ───────────────────────────────────────────────────────────
+    y = 118
+    y = section("TURN-BASED PHYSICS", [
+        "Each turn: choose acceleration with arrow keys,",
+        "then press SPACE to commit. Your car moves by",
+        "velocity + chosen acceleration. Think ahead —",
+        "high speed is hard to steer!",
+    ], col_l, y)
+
+    y = section("CONTROLS", [
+        "Arrow Keys   →  Aim acceleration (±2 per axis)",
+        "SPACE        →  Confirm move (5 s time limit)",
+        "ESC          →  Pause (safe — waits for turn end)",
+        "T (pre-race) →  Toggle A* vs BFS dev stats",
+        "W (pre-race) →  Cycle weather conditions",
+        "S (pre-race) →  Save & name the current track",
+    ], col_l, y)
+
+    y = section("LIVES & RESPAWN", [
+        "You have 3 lives.  Hitting a wall or pothole",
+        "costs one life and respawns you at the centroid",
+        "of the last checkpoint you cleared.",
+        "Lose all lives → Game Over.",
+    ], col_l, y)
+
+    # ── Right column ──────────────────────────────────────────────────────────
+    y = 118
+    y = section("CHECKPOINTS", [
+        "Clear all numbered checkpoints in order before",
+        "the finish line registers. The active checkpoint",
+        "pulses orange.  Skipping one means the finish",
+        "line won't count — even if you cross it!",
+    ], col_r, y)
+
+    y = section("WEATHER", [
+        "Sunny  →  Normal  (speed 5, accel ±2)",
+        "Rainy  →  Reduced grip (speed 3, accel ±1)",
+        "Snowy  →  Momentum carry: braking is limited,",
+        "           so scrubbing speed takes longer.",
+    ], col_r, y)
+
+    y = section("AI OPPONENTS", [
+        "CPU Easy   →  Random moves, momentum-biased",
+        "CPU Medium →  Greedy: targets next checkpoint",
+        "CPU Hard   →  Follows pre-computed A* path",
+        "Ghost Car  →  Your personal best run replayed",
+    ], col_r, y)
+
+    pygame.draw.line(screen, s.FLASH_PANEL_BORDER,
+                     (100, s.screen_height - 52),
+                     (s.screen_width - 100, s.screen_height - 52), 1)
+    draw_pulsing_text(screen, "Press  SPACE  or  ESC  to return",
+                      20, (180, 180, 200), cx, s.screen_height - 28)

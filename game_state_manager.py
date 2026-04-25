@@ -9,8 +9,9 @@ main.py uses gsm.transition() — invalid jumps get logged, never silently corru
 class GameState:
     # ── Active states ─────────────────────────────────────────────────────────
     BOOT_MENU  = "BOOT_MENU"
+    TUTORIAL   = "TUTORIAL"
     MAP_SELECT = "MAP_SELECT"
-    GA_SETUP   = "GA_SETUP"    # Commit 7 — waypoint / sharpness selector
+    GA_SETUP   = "GA_SETUP"   
     GENERATING = "GENERATING"
     LOADING    = "LOADING"
     AI_PREVIEW = "AI_PREVIEW"

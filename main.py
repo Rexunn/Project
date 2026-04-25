@@ -589,9 +589,10 @@ def main():
                                 f for f in os.listdir(".") if f.endswith(".json"))
                             map_idx = 0
                             gsm.transition(GameState.MAP_SELECT)
-                        else:                   # Generate → GA_SETUP first
+                        elif menu_idx == 2:     # Generate → GA_SETUP
                             gsm.transition(GameState.GA_SETUP)
-
+                        elif menu_idx == 3:     # How to Play 
+                            gsm.transition(GameState.TUTORIAL)
                 # ── MAP_SELECT ─────────────────────────────────────────────────
                 elif gsm == GameState.MAP_SELECT:
                     if event.key == pygame.K_UP:
@@ -696,7 +697,12 @@ def main():
                         gsm.transition(GameState.GENERATING)
                     elif event.key == pygame.K_m:
                         gsm.transition(GameState.BOOT_MENU)
-
+                # ── TUTORIAL ─────────────────────────────────────────────────
+                elif gsm == GameState.TUTORIAL:
+                    if event.key in (pygame.K_SPACE, pygame.K_ESCAPE,
+                                     pygame.K_BACKSPACE, pygame.K_RETURN):
+                        gsm.transition(GameState.BOOT_MENU)
+        
         # ── Background ────────────────────────────────────────────────────────
         if track:
             screen.fill(s.gray)
@@ -1215,6 +1221,13 @@ def main():
 
             # Right side: leaderboard
             draw_leaderboard(screen, racers, checkpoint_clusters, current_turn)
+
+        # ═════════════════════════════════════════════════════════════════════
+        # TUTORIAL
+        # ═════════════════════════════════════════════════════════════════════
+        elif gsm == GameState.TUTORIAL:
+            draw_boot_background(screen)
+            draw_tutorial_screen(screen)
 
         # ═════════════════════════════════════════════════════════════════════
         # WIN
