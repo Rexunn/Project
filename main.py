@@ -1182,27 +1182,13 @@ def main():
                         pygame.draw.circle(screen, (0, 160, 160), (px, py), 2)
 
             draw_active_checkpoint(screen, checkpoint_clusters,
-                                player_racer, track.TILE_SIZE)
-            draw_checkpoint_numbers(screen, checkpoint_clusters, track.TILE_SIZE)
-
-            #Draw obstacles beneath racers
-            draw_obstacles(screen, obstacles, track.TILE_SIZE)
-
-            #fading movement trails (drawn beneath racers)
-            draw_racer_trails(screen, racers, track)
-
-            draw_active_checkpoint(screen, checkpoint_clusters,
                                    player_racer, track.TILE_SIZE)
             draw_checkpoint_numbers(screen, checkpoint_clusters, track.TILE_SIZE)
             draw_obstacles(screen, obstacles, track.TILE_SIZE)
+            draw_racer_trails(screen, racers, track)
             draw_racers(screen, racers, track)
-
-            #player triangle indicator (drawn above racers)
             draw_player_triangle(screen, player_racer, track)
 
-            draw_racers(screen, racers, track)
-
-            # Wrong-way banner (player only, purely cosmetic)
             if player_racer.wrong_way:
                 draw_wrong_way_banner(screen)
 
