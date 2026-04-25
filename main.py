@@ -76,11 +76,6 @@ def cpu_easy_move(engine, state, cp_forward=None):
                             This prevents CPU Easy from completing the race
                             by accidentally driving backwards.
 
-    Parameters
-    ----------
-    cp_forward : tuple(float, float) | None
-        Unit vector pointing from the current checkpoint toward the next one.
-        None = no directional filter (e.g. when all CPs are cleared).
     """
     moves = engine.get_legal_moves(state)
     if not moves:
@@ -143,40 +138,43 @@ def get_cpu_target(racer, checkpoint_clusters, track):
 # Race-progress checker  
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def check_racer_progress(racer, track, checkpoint_clusters, current_turn):
-    x, y = racer.state.x, racer.state.y
-    if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
-        return
-    tile = track.grid[y][x]
-    nxt  = len(racer.checkpoints_cleared)
-
-    #tick down grace counter each turn
+def check_racer_progress(racer, prev_state, track, checkpoint_clusters, current_turn, engine):
+    # Tick down grace counter each turn (Do this ONCE per turn, outside the tile loop)
     if racer.grace_turns_remaining > 0:
         racer.grace_turns_remaining -= 1
 
-    if tile >= 4 and nxt < len(checkpoint_clusters):
-        if (x, y) in checkpoint_clusters[nxt]:
-            racer.checkpoints_cleared.add(nxt)
-            racer.last_checkpoint_pos = CarState(x, y, 0, 0) #record exact tile
-            print(f"{racer.name} CP {nxt+1}/{len(checkpoint_clusters)}")
-            # record checkpoint centroid for respawn
-            cl  = checkpoint_clusters[nxt]
-            cxr = sum(cx for cx, _ in cl) // len(cl)
-            cyr = sum(cy for _, cy in cl) // len(cl)
-            racer.last_checkpoint_pos = (cxr, cyr)
+    # Get every tile crossed during this specific move
+    crossed_tiles = engine.get_crossed_tiles(prev_state.x, prev_state.y, racer.state.x, racer.state.y)
+    
+    for x, y in crossed_tiles:
+        if y < 0 or y >= len(track.grid) or x < 0 or x >= len(track.grid[0]):
+            continue
+        
+        tile = track.grid[y][x]
+        nxt  = len(racer.checkpoints_cleared)
 
-    # FIX: skip finish detection during respawn grace window
-    if (tile == 3
-            and len(racer.checkpoints_cleared) >= len(checkpoint_clusters)
-            and racer.grace_turns_remaining == 0):
-        racer.laps_completed += 1
-        if racer.laps_completed >= racer.total_laps:
-            racer.finished = True
-            if racer.finish_turn is None:
-                racer.finish_turn = current_turn
-            print(f"{racer.name} FINISHED (turn {current_turn})")
-        else:
-            racer.checkpoints_cleared.clear()
+        if tile >= 4 and nxt < len(checkpoint_clusters):
+            if (x, y) in checkpoint_clusters[nxt]:
+                racer.checkpoints_cleared.add(nxt)
+                # record checkpoint centroid for respawn
+                cl  = checkpoint_clusters[nxt]
+                cxr = sum(cx for cx, _ in cl) // len(cl)
+                cyr = sum(cy for _, cy in cl) // len(cl)
+                racer.last_checkpoint_pos = (cxr, cyr)
+                print(f"{racer.name} CP {nxt+1}/{len(checkpoint_clusters)}")
+
+        # FIX: skip finish detection during respawn grace window
+        if (tile == 3
+                and len(racer.checkpoints_cleared) >= len(checkpoint_clusters)
+                and racer.grace_turns_remaining == 0):
+            racer.laps_completed += 1
+            if racer.laps_completed >= racer.total_laps:
+                racer.finished = True
+                if racer.finish_turn is None:
+                    racer.finish_turn = current_turn
+                print(f"{racer.name} FINISHED (turn {current_turn})")
+            else:
+                racer.checkpoints_cleared.clear()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1108,9 +1106,12 @@ def main():
                         racer.crashed = True
                         print(f"{racer.name} out of moves — crashed.")
                     else:
+                        prev_state = racer.state 
                         racer.state = new_state
-                        check_racer_progress(racer, track,
-                                            checkpoint_clusters, current_turn)
+                        
+                    
+                        check_racer_progress(racer, prev_state, track, 
+                                             checkpoint_clusters, current_turn, engine)
                         
                         #trail update
                         racer.trail_positions.append((new_state.x, new_state.y))
