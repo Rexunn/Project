@@ -109,60 +109,94 @@ def draw_lives(screen: pygame.Surface,
 def draw_speed_gauge(screen: pygame.Surface,
                      vx: int, vy: int,
                      x: int, y: int) -> None:
-    """Five segmented bars coloured green / yellow / red by speed."""
+    """Flash-style segmented speed bar — larger, more contrast."""
     speed = max(abs(vx), abs(vy))
-    draw_text(screen, "SPD", 12, (180, 180, 180), x - 30, y, bold=False)
+    draw_text(screen, "SPD", 11, (160, 160, 185), x - 34, y, bold=False)
+    seg_w, seg_h, gap = 12, 16, 3
     for i in range(1, 6):
-        seg = (50, 50, 50)
-        if i <= speed:
-            if   i <= 2: seg = s.green
-            elif i <= 4: seg = s.yellow
-            else:        seg = s.red
-        pygame.draw.rect(screen, seg, (x - 8 + (i - 1) * 14, y - 7, 10, 14))
-
+        bx = x - 6 + (i - 1) * (seg_w + gap)
+        filled = (i <= speed)
+        if not filled:
+            bg = (30, 30, 48)
+            pygame.draw.rect(screen, bg, (bx, y - seg_h // 2, seg_w, seg_h))
+            pygame.draw.rect(screen, (50, 50, 70),
+                             (bx, y - seg_h // 2, seg_w, seg_h), 1)
+        else:
+            if   i <= 2: col = (50, 210, 80)
+            elif i <= 4: col = (220, 180, 20)
+            else:        col = (220, 60,  50)
+            pygame.draw.rect(screen, col, (bx, y - seg_h // 2, seg_w, seg_h))
+            # Highlight
+            pygame.draw.rect(screen, (255, 255, 255),
+                             (bx, y - seg_h // 2, seg_w, 3))
 
 # ── HUD: race position badge ──────────────────────────────────────────────────
 
 def draw_place_badge(screen: pygame.Surface,
                      place: int, x: int, y: int) -> None:
-    """Large top-left placement badge (1ST / 2ND / …)."""
+    """Flash-style placement badge with border."""
     labels = {1: "1ST", 2: "2ND", 3: "3RD", 4: "4TH"}
-    colors = {1: s.yellow, 2: (210, 210, 210), 3: (205, 127, 50), 4: s.white}
+    colors = {1: (255, 205,   0),
+              2: (200, 200, 215),
+              3: (205, 127,  50),
+              4: (160, 160, 175)}
     label = labels.get(place, f"{place}TH")
     color = colors.get(place, s.white)
-    draw_panel(screen, x, y, 80, 46, color=(0, 0, 0), alpha=170)
-    draw_text(screen, label, 28, color, x, y)
+    # Panel
+    draw_panel(screen, x, y, 88, 50, color=s.FLASH_PANEL_BG, alpha=220)
+    bx, by = x - 44, y - 25
+    pygame.draw.rect(screen, color, (bx, by, 88, 50), 2)
+    draw_text(screen, label, 30, color, x, y)
 
 
 # ── Timer bar ─────────────────────────────────────────────────────────────────
 
 def draw_timer_bar(screen: pygame.Surface,
                    time_remaining: float, max_time: float) -> None:
-    bar_w, bar_h = 260, 14
+    """Flash-style timer bar — taller, bolder, colour-coded urgency."""
+    bar_w, bar_h = 280, 18
     bx = s.screen_width // 2 - bar_w // 2
-    by = 6
-    pygame.draw.rect(screen, (40, 40, 40), (bx, by, bar_w, bar_h))
-    ratio   = max(0.0, time_remaining / max_time)
-    fill_w  = int(bar_w * ratio)
-    bar_col = s.green if ratio > 0.33 else s.red
+    by = 4
+
+    # Background track
+    pygame.draw.rect(screen, (25, 25, 38), (bx, by, bar_w, bar_h))
+
+    ratio  = max(0.0, time_remaining / max_time)
+    fill_w = int(bar_w * ratio)
+
+    # Colour transitions: green → amber → red
+    if ratio > 0.6:
+        bar_col = (40, 210, 80)
+    elif ratio > 0.3:
+        bar_col = (220, 160, 20)
+    else:
+        bar_col = (220, 50, 50)
+
     if fill_w > 0:
         pygame.draw.rect(screen, bar_col, (bx, by, fill_w, bar_h))
-    pygame.draw.rect(screen, (120, 120, 120), (bx, by, bar_w, bar_h), 1)
-    draw_text(screen, f"{max(0.0, time_remaining):.1f}s", 13, s.white,
-              s.screen_width // 2, by + bar_h + 11)
+        # Inner highlight stripe
+        pygame.draw.rect(screen, (255, 255, 255),
+                         (bx, by, fill_w, 3), 0)
 
+    # Border
+    pygame.draw.rect(screen, s.FLASH_PANEL_BORDER, (bx, by, bar_w, bar_h), 1)
+
+    # Time label
+    draw_text(screen, f"{max(0.0, time_remaining):.1f}s",
+              14, s.white, s.screen_width // 2, by + bar_h + 12)
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
 def draw_leaderboard(screen: pygame.Surface, racers: list,
                      checkpoint_clusters: list,
                      current_turn: int) -> None:
-    """Compact mid-right leaderboard, sorted by race progress."""
-    total_cp = len(checkpoint_clusters)
-    x = s.screen_width - 160
-    y = 90                               # start below the top-right HUD
+    """
+    Condensed leaderboard: shows only the player, the racer
+    immediately ahead, and the racer immediately behind
 
-    draw_panel(screen, x, y + 50, 300, 150, alpha=140)
+    """
+    import settings as s
+    total_cp = len(checkpoint_clusters)
 
     def score(r):
         if r.crashed:   return (-1, 0, 0)
@@ -176,31 +210,66 @@ def draw_leaderboard(screen: pygame.Surface, racers: list,
             dist = abs(r.state.x - cx_) + abs(r.state.y - cy_)
         return (1, cp, -dist)
 
-    for i, racer in enumerate(sorted(racers, key=score, reverse=True)):
+    ranked = sorted(racers, key=score, reverse=True)
+
+    # Find player rank (0-indexed)
+    player_rank = next((i for i, r in enumerate(ranked) if r.type == "PLAYER"), 0)
+
+    # Build the 3-entry window: [one ahead, player, one behind]
+    lo = max(0, player_rank - 1)
+    hi = min(len(ranked), player_rank + 2)
+    visible = ranked[lo:hi]
+
+    # Layout constants
+    cx      = s.screen_width - 110
+    start_y = 105           # below speed/lives panel (~y=75)
+    row_h   = 26
+    panel_h = 18 + row_h * len(visible)
+    panel_w = 220
+
+    draw_panel(screen, cx, start_y + panel_h // 2 - 4,
+               panel_w, panel_h + 16,
+               color=s.FLASH_PANEL_BG, alpha=210)
+    # Border
+    bx = cx - panel_w // 2
+    by = start_y - 8
+    pygame.draw.rect(screen, s.FLASH_PANEL_BORDER,
+                     (bx, by, panel_w, panel_h + 16), 1)
+
+    labels = ["1st", "2nd", "3rd", "4th"]
+    y = start_y
+
+    for global_rank, racer in enumerate(ranked):
+        if racer not in visible:
+            continue
         cp     = len(racer.checkpoints_cleared)
-        labels = ["1st", "2nd", "3rd", "4th"]
-        place  = labels[i] if i < 4 else f"{i+1}th"
+        place  = labels[global_rank] if global_rank < 4 else f"{global_rank+1}th"
+        is_player = (racer.type == "PLAYER")
+
         if racer.finished:
             status = "DONE"
         elif racer.crashed:
             status = "OUT"
         else:
-            status = f"L{racer.laps_completed + 1} {cp}/{total_cp}cp"
-        draw_text(screen, f"{place} {racer.name}: {status}",
-                  13, racer.color, x, y)
-        y += 18
+            status = f"L{racer.laps_completed + 1} · {cp}/{total_cp}cp"
 
-        if racer.type == "CPU_HARD" and racer.precomputed_path:
-            draw_text(screen,
-                      f"  A* {len(racer.precomputed_path)}st "
-                      f"{len(racer.explored_states)}n "
-                      f"{racer.solve_time:.2f}s",
-                      11, (160, 160, 160), x, y)
-            y += 15
+        # Highlight player row
+        if is_player:
+            highlight_surf = pygame.Surface((panel_w - 4, row_h - 2), pygame.SRCALPHA)
+            highlight_surf.fill((255, 255, 255, 18))
+            screen.blit(highlight_surf, (bx + 2, y - row_h // 2 + 1))
 
-    y += 8
-    draw_text(screen, f"Turn {current_turn}", 12, (160, 160, 160), x, y)
+        col = s.FLASH_GOLD if is_player else racer.color
+        draw_text(screen, f"{place}  {racer.name}", 13, col, cx - 28, y)
+        draw_text(screen, status, 12, (180, 180, 200) if not is_player else s.white,
+                  cx + 60, y, bold=False)
+        y += row_h
 
+    # Separator + turn counter
+    pygame.draw.line(screen, s.FLASH_PANEL_BORDER,
+                     (bx + 6, y - 4), (bx + panel_w - 6, y - 4), 1)
+    draw_text(screen, f"Turn {current_turn}", 11, (130, 130, 155),
+              cx, y + 4, bold=False)
 
 # ── Menu list ─────────────────────────────────────────────────────────────────
 

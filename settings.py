@@ -134,3 +134,9 @@ GA_SHARPNESS_PRESETS = {
     "Normal": {"carve_radius": 2, "mut_variance": 3, "jitter": 4},
     "Sharp":  {"carve_radius": 1, "mut_variance": 5, "jitter": 6},
 }
+
+# ── Flash UI Palette ─────────────────────────────────────────────────
+FLASH_PANEL_BG     = (8,  8,  18)
+FLASH_PANEL_BORDER = (70, 70, 110)
+FLASH_GOLD         = (255, 205, 0)
+FLASH_TEAL         = (0,  200, 180)
