@@ -29,14 +29,19 @@ class GameState:
 
 _VALID_TRANSITIONS: dict[str, set[str]] = {
     GameState.BOOT_MENU:  {GameState.MAP_SELECT, GameState.GA_SETUP,
-                           GameState.GENERATING, GameState.LOADING},
+                           GameState.GENERATING, GameState.LOADING,
+                           GameState.TUTORIAL},
     GameState.MAP_SELECT: {GameState.LOADING, GameState.BOOT_MENU},
-    GameState.GA_SETUP:   {GameState.GENERATING, GameState.BOOT_MENU},   # Commit 7
+    GameState.GA_SETUP:   {GameState.GENERATING, GameState.BOOT_MENU},  
     GameState.GENERATING: {GameState.LOADING, GameState.BOOT_MENU},
     GameState.LOADING:    {GameState.AI_PREVIEW, GameState.BOOT_MENU},
     GameState.AI_PREVIEW: {GameState.PRE_RACE},
     GameState.PRE_RACE:   {GameState.RUNNING},
-    GameState.RUNNING:    {GameState.WIN, GameState.LOSE},
+    GameState.RUNNING:    {GameState.WIN, GameState.LOSE,
+                            GameState.PAUSED},
+     GameState.PAUSED:     {GameState.RUNNING,           
+                           GameState.BOOT_MENU},
+    GameState.TUTORIAL:   {GameState.BOOT_MENU},
     GameState.WIN:        {GameState.PRE_RACE, GameState.GENERATING,
                            GameState.BOOT_MENU},
     GameState.LOSE:       {GameState.PRE_RACE, GameState.GENERATING,
