@@ -656,7 +656,7 @@ def main():
                 # ── RUNNING ────────────────────────────────────────────────────
                 #clamp input to engine.accel_limit so weather matters
                 elif gsm == GameState.RUNNING and race_phase == "INPUT":
-                    if event.key =pygame.K_ESCAPE:
+                    if event.key == pygame.K_ESCAPE:
                         pending_pause = True
                     lim = engine.accel_limit if engine else 2
                     if   event.key == pygame.K_UP:    player_ay = max(-lim, player_ay - 1)
@@ -683,8 +683,7 @@ def main():
                             if ch and ch.isprintable() and len(post_race_name_buffer) < 20:
                                 post_race_name_buffer += ch
                         continue   # swallow all other keys while naming
-
-                    if event.key == pygame.K_r:
+                     if event.key == pygame.K_r:
                         reset_racers(racers, start_state)
                         ghost_recorder.reset()
                         ghost_car        = _load_ghost_car(tid)
@@ -697,9 +696,9 @@ def main():
                         new_record       = False
                         show_dev_stats   = False
                         gsm.transition(GameState.PRE_RACE)
-                    elif event.key == pygame.K_g:
+                     elif event.key == pygame.K_g:
                         gsm.transition(GameState.GENERATING)
-                    elif event.key == pygame.K_m:
+                     elif event.key == pygame.K_m:
                         gsm.transition(GameState.BOOT_MENU)
                 # ── TUTORIAL ─────────────────────────────────────────────────
                 elif gsm == GameState.TUTORIAL:

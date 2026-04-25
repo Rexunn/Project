@@ -22,7 +22,7 @@ class Chromosome:
     """
 
     def __init__(self, cols: int, rows: int,
-                 num_waypoints: int = 8,
+                 num_waypoints: int = 10,
                  carve_radius:  int = 2,
                  jitter:        int = 2):
         self.cols          = cols
