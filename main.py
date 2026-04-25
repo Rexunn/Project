@@ -972,7 +972,7 @@ def main():
             if naming_mode:
                 draw_naming_overlay(screen, track_name_buffer)
         # ═════════════════════════════════════════════════════════════════════
-        # RUNNING  (Commits 1, 4, 6)
+        # RUNNING 
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.RUNNING:
             player_racer = racers[0]
@@ -1245,6 +1245,11 @@ def main():
         elif gsm == GameState.PAUSED:
             # Track is still visible in background
             draw_pause_menu(screen)
+             if event.key in (pygame.K_ESCAPE, pygame.K_p):
+                turn_start_time = time.time()  # grant a fresh 5-s window on resume
+                gsm.transition(GameState.RUNNING)
+            elif event.key == pygame.K_m:
+                gsm.transition(GameState.BOOT_MENU)
         
         # ═════════════════════════════════════════════════════════════════════
         # WIN
