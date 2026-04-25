@@ -233,23 +233,21 @@ class AStarSolver:
     # Checkpoint-ordered A*  (main race solver)
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def _heuristic_ordered(self, state: OrderedCarState,
-                            checkpoint_clusters: list,
-                            finish_coords: list,
-                            num_cps: int) -> float:
-        """
-        Legacy interface retained for any external callers.
-        astar_search_ordered() — call that method directly for performance.
-        """
+    def _heuristic_ordered(self, state, checkpoint_clusters, finish_coords, num_cps):
+        """Legacy interface — now delegates to the admissible Chebyshev form."""
+        max_speed = self.engine.max_speed
         if state.cp_idx < num_cps:
             cluster = checkpoint_clusters[state.cp_idx]
-            return min(abs(state.x - cx) + abs(state.y - cy)
-                       for cx, cy in cluster) / 3.0
-        else:
-            if not finish_coords:
-                return 0.0
-            return min(abs(state.x - fx) + abs(state.y - fy)
-                       for fx, fy in finish_coords) / 3.0
+            return min(
+                max(abs(state.x - cx), abs(state.y - cy))
+                for cx, cy in cluster
+            ) / max_speed                        # Chebyshev / v_max — admissible
+        if not finish_coords:
+            return 0.0
+        return min(
+            max(abs(state.x - fx), abs(state.y - fy))
+            for fx, fy in finish_coords
+        ) / max_speed
 
     def astar_search_ordered(self, start_state,
                               checkpoint_clusters: list,
