@@ -697,3 +697,29 @@ def draw_tutorial_screen(screen: pygame.Surface) -> None:
                      (s.screen_width - 100, s.screen_height - 52), 1)
     draw_pulsing_text(screen, "Press  SPACE  or  ESC  to return",
                       20, (180, 180, 200), cx, s.screen_height - 28)
+
+# ── Pause menu ─────────────────────────────────────────────────────────
+def draw_pause_menu(screen: pygame.Surface) -> None:
+    """
+    Pause overlay.  Rendered on top of whatever was last drawn
+    to the screen (the track and racers from the previous frame).
+    """
+    draw_overlay(screen, alpha=170, color=(0, 0, 12))
+
+    draw_text(screen, "PAUSED", 64, s.FLASH_GOLD,
+              s.screen_width // 2, s.screen_height // 2 - 100)
+
+    pygame.draw.line(screen, s.FLASH_PANEL_BORDER,
+                     (200, s.screen_height // 2 - 52),
+                     (s.screen_width - 200, s.screen_height // 2 - 52), 1)
+
+    draw_hint_row(screen, "ESC / P", "Resume race",
+                  s.screen_width // 2, s.screen_height // 2,
+                  highlight=True)
+    draw_hint_row(screen, "M", "Main menu",
+                  s.screen_width // 2, s.screen_height // 2 + 46)
+
+    draw_text(screen,
+              "The current turn was completed before pausing.",
+              15, (110, 110, 130),
+              s.screen_width // 2, s.screen_height // 2 + 100, bold=False)

@@ -17,6 +17,7 @@ class GameState:
     AI_PREVIEW = "AI_PREVIEW"
     PRE_RACE   = "PRE_RACE"
     RUNNING    = "RUNNING"
+    PAUSED     = "PAUSED"
     WIN        = "WIN"
     LOSE       = "LOSE"
 

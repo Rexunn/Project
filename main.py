@@ -526,6 +526,8 @@ def main():
     post_race_phase:       str  = "IDLE"
     post_race_name_buffer: str  = ""
     post_race_is_top5:     bool = False
+
+    pending_pause: bool = False
     # ═════════════════════════════════════════════════════════════════════════
     # MAIN LOOP
     # ═════════════════════════════════════════════════════════════════════════
@@ -654,6 +656,8 @@ def main():
                 # ── RUNNING ────────────────────────────────────────────────────
                 #clamp input to engine.accel_limit so weather matters
                 elif gsm == GameState.RUNNING and race_phase == "INPUT":
+                    if event.key =pygame.K_ESCAPE:
+                        pending_pause = True
                     lim = engine.accel_limit if engine else 2
                     if   event.key == pygame.K_UP:    player_ay = max(-lim, player_ay - 1)
                     elif event.key == pygame.K_DOWN:  player_ay = min( lim, player_ay + 1)
@@ -972,6 +976,11 @@ def main():
         elif gsm == GameState.RUNNING:
             player_racer = racers[0]
 
+            #Safe pause
+            if race_phase == "INPUT" and pending_pause:
+                pending_pause = False
+                gsm.transition(GameState.PAUSED)
+
             # ── INPUT phase ───────────────────────────────────────────────────
             if race_phase == "INPUT":
                 elapsed        = time.time() - turn_start_time
@@ -1229,6 +1238,13 @@ def main():
             draw_boot_background(screen)
             draw_tutorial_screen(screen)
 
+        # ═════════════════════════════════════════════════════════════════════
+        # PAUSED
+        # ═════════════════════════════════════════════════════════════════════
+        elif gsm == GameState.PAUSED:
+            # Track is still visible in background
+            draw_pause_menu(screen)
+        
         # ═════════════════════════════════════════════════════════════════════
         # WIN
         # ═════════════════════════════════════════════════════════════════════
