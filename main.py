@@ -1418,12 +1418,16 @@ def draw_player_triangle(screen, player_racer, track):
         return
     ts  = track.TILE_SIZE
     px  = player_racer.state.x * ts + ts // 2
-    py  = player_racer.state.y * ts - 4          # just above the tile
+    # Bottom tip of the triangle points AT the top of the car
+    py  = player_racer.state.y * ts - 4          
     h   = max(8, ts // 2)
     w   = max(6, ts // 3)
-    tip    = (px,     py - h)
-    left_  = (px - w, py)
-    right_ = (px + w, py)
+    
+    # Inverted coordinates: tip is at the bottom, left/right form the flat top
+    tip    = (px, py)
+    left_  = (px - w, py - h)
+    right_ = (px + w, py - h)
+    
     pygame.draw.polygon(screen, (255, 255, 255), [tip, left_, right_])
     pygame.draw.polygon(screen, (20,  20,  20),  [tip, left_, right_], 1)
 
