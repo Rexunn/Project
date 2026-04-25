@@ -464,7 +464,7 @@ def main():
     start_state: CarState             = CarState(5, 5, 0, 0)
 
     # ── Boot menu ─────────────────────────────────────────────────────────────
-    MENU_OPTIONS = ["Default Track", "Saved Maps", "Generate New Map"]
+    MENU_OPTIONS = ["Default Track", "Saved Maps", "Generate New Map", "How to Play"]
     menu_idx     = 0
 
     # ── Map select ────────────────────────────────────────────────────────────
