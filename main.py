@@ -702,6 +702,14 @@ def main():
                         gsm.transition(GameState.GENERATING)
                      elif event.key == pygame.K_m:
                         gsm.transition(GameState.BOOT_MENU)
+                
+                # ── PAUSE MENU ─────────────────────────────────────────────────
+                elif gsm == GameState.PAUSED:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_p):
+                        turn_start_time = time.time()  # grant a fresh 5-s window on resume
+                        gsm.transition(GameState.RUNNING)
+                    elif event.key == pygame.K_m:
+                        gsm.transition(GameState.BOOT_MENU)
                 # ── TUTORIAL ─────────────────────────────────────────────────
                 elif gsm == GameState.TUTORIAL:
                     if event.key in (pygame.K_SPACE, pygame.K_ESCAPE,
@@ -1245,11 +1253,6 @@ def main():
         elif gsm == GameState.PAUSED:
             # Track is still visible in background
             draw_pause_menu(screen)
-             if event.key in (pygame.K_ESCAPE, pygame.K_p):
-                turn_start_time = time.time()  # grant a fresh 5-s window on resume
-                gsm.transition(GameState.RUNNING)
-            elif event.key == pygame.K_m:
-                gsm.transition(GameState.BOOT_MENU)
         
         # ═════════════════════════════════════════════════════════════════════
         # WIN
