@@ -98,40 +98,40 @@ class PhysicsEngine:
         return self.track[y][x] not in self.lethal_tiles
 
     def get_crossed_tiles(self, x1: int, y1: int, x2: int, y2: int) -> list[tuple[int, int]]:
-    """
-    Bresenham's Line Algorithm.
-    Returns every (x, y) grid tile crossed when moving from (x1,y1) to (x2,y2)
-    continuous collision detection — prevents tunnelling through
-    checkpoints and finish lines at high velocity.
-    """
-    tiles = []
-    dx = abs(x2 - x1)
-    dy = abs(y2 - y1)
-    x, y = x1, y1
-    sx = 1 if x2 > x1 else -1
-    sy = 1 if y2 > y1 else -1
+        """
+        Bresenham's Line Algorithm.
+        Returns every (x, y) grid tile crossed when moving from (x1,y1) to (x2,y2)
+        continuous collision detection — prevents tunnelling through
+        checkpoints and finish lines at high velocity.
+        """
+        tiles = []
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        x, y = x1, y1
+        sx = 1 if x2 > x1 else -1
+        sy = 1 if y2 > y1 else -1
 
-    if dx > dy:
-        err = dx / 2
-        while x != x2:
-            x += sx
-            err -= dy
-            if err < 0:
-                y += sy
-                err += dx
-            tiles.append((x, y))
-    else:
-        err = dy / 2
-        while y != y2:
-            y += sy
-            err -= dx
-            if err < 0:
+        if dx > dy:
+            err = dx / 2
+            while x != x2:
                 x += sx
-                err += dy
-            tiles.append((x, y))
+                err -= dy
+                if err < 0:
+                    y += sy
+                    err += dx
+                tiles.append((x, y))
+        else:
+            err = dy / 2
+            while y != y2:
+                y += sy
+                err -= dx
+                if err < 0:
+                    x += sx
+                    err += dy
+                tiles.append((x, y))
 
-    # Ensure destination is always included
-    if not tiles or tiles[-1] != (x2, y2):
-        tiles.append((x2, y2))
+        # Ensure destination is always included
+        if not tiles or tiles[-1] != (x2, y2):
+            tiles.append((x2, y2))
 
-    return tiles
+        return tiles
