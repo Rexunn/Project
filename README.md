@@ -269,7 +269,7 @@ The condition `ax * vx < 0` is true exactly when the chosen acceleration opposes
 
 ---
 
-## 🧪 Testing
+## Testing
 
 Unit tests are located in `test_solver.py` and cover:
 
@@ -293,7 +293,7 @@ python -m pytest test_solver.py -v
 
 ---
 
-## 📊 Experimental Results (Summary)
+## Experimental Results (Summary)
 
 | Research Question | Finding |
 |---|---|
@@ -303,7 +303,7 @@ python -m pytest test_solver.py -v
 
 ---
 
-## 🔮 Potential Extensions
+## Potential Extensions
 
 - **Multi-lap kinematic continuity** — pipe terminal state `(x, y, vx, vy)` of lap N as initial state of lap N+1 to eliminate resetting behaviour
 - **Full circuit fitness oracle** — replace point-to-point A\* solvability check in `calculate_fitness` with the full 5D ordered solver (at the cost of generation time)
@@ -313,7 +313,7 @@ python -m pytest test_solver.py -v
 
 ---
 
-## 📄 Licence
+## Licence
 
 This project was developed as a final-year undergraduate dissertation at the **School of Computing and Mathematical Sciences, University of Leicester** (CO3201).
 
