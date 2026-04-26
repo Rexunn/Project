@@ -16,7 +16,7 @@ green   = (0,   255, 0)
 blue    = (0,   0,   255)
 yellow  = (255, 255, 0)
 cyan    = (0,   200, 200)
-
+# ── UI Palette & Backgrounds ─────────────────────────────────────────────────
 dark_bg    = (12,  12,  22)
 panel_bg   = (20,  20,  35)
 accent     = (100, 180, 255)
@@ -33,13 +33,10 @@ turn_time_limit = 5.0
 PLAYER_LIVES    = 3
 MAX_TURNS       = 250
 # ── AI Preview (updated for static fade-in) ───────────────────────────────────
-AI_PREVIEW_FADE_SECS  = 0.5    # seconds for path line to fade in
-AI_PREVIEW_HOLD_SECS  = 2.0    # seconds to hold after fade completes
-#  — kept as dead constants so existing run_experiments.py references
-#  don't break until tidy them up)
+AI_PREVIEW_FADE_SECS  = 0.5    
+AI_PREVIEW_HOLD_SECS  = 1.8    # Unified to the lower value from your second block
 AI_PREVIEW_NODES_PER_FRAME = 60
 AI_PREVIEW_PATH_PER_FRAME  = 4
-
 # ── Wrong way detection ───────────────────────────────────────────────────────
 WRONG_WAY_DOT_THRESHOLD = -0.3   # dot product below this triggers warning
 WRONG_WAY_MIN_SPEED     = 2      # |vx| or |vy| must exceed this to trigger
@@ -60,10 +57,16 @@ ghost        = (100, 100, 255, 150)
 ghost_crash  = (255, 100, 100, 150)
 ghost_finish = (100, 255, 100, 150)
 
-# ── AI Preview animation ──────────────────────────────────────────────────────
-AI_PREVIEW_NODES_PER_FRAME = 60
-AI_PREVIEW_PATH_PER_FRAME  = 4
-AI_PREVIEW_HOLD_SECS       = 1.8
+# ── Flash UI Palette ─────────────────────────────────────────────────
+FLASH_PANEL_BG     = (8,  8,  18)
+FLASH_PANEL_BORDER = (70, 70, 110)
+FLASH_GOLD         = (255, 205, 0)
+FLASH_TEAL         = (0,  200, 180)
+
+# ── Trail System  ─────────────────────────────────────────────────────
+TRAIL_LENGTH    = 9     # how many historic positions to store per racer
+TRAIL_MIN_ALPHA = 15    # alpha at the oldest dot
+TRAIL_MAX_ALPHA = 145   # alpha at the newest dot (just behind the racer)
 
 # ── Loading hints ─────────────────────────────────────────────────────────────
 LOADING_HINTS = [
@@ -107,11 +110,7 @@ WEATHER_COLOURS = {
     "Snowy": (200, 220, 255),
 }
 
-WEATHER_LABELS = {
-    "Sunny": "Sunny",
-    "Rainy": "Rainy",
-    "Snowy": "Snowy",
-}
+
 
 # ── Obstacle system ─────────────────────────────────────────────────
 OBSTACLE_COUNT = 5          # obstacles placed per race
@@ -135,16 +134,7 @@ GA_SHARPNESS_PRESETS = {
     "Sharp":  {"carve_radius": 1, "mut_variance": 5, "jitter": 6},
 }
 
-# ── Flash UI Palette ─────────────────────────────────────────────────
-FLASH_PANEL_BG     = (8,  8,  18)
-FLASH_PANEL_BORDER = (70, 70, 110)
-FLASH_GOLD         = (255, 205, 0)
-FLASH_TEAL         = (0,  200, 180)
 
-# ── Trail System  ─────────────────────────────────────────────────────
-TRAIL_LENGTH    = 9     # how many historic positions to store per racer
-TRAIL_MIN_ALPHA = 15    # alpha at the oldest dot
-TRAIL_MAX_ALPHA = 145   # alpha at the newest dot (just behind the racer)
 
 # ── GA Generation Flavour Texts ─────────────────────────────────────
 GA_LOADING_TEXTS = [

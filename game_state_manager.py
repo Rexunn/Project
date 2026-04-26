@@ -101,38 +101,7 @@ class GameStateManager:
         self._previous = self._state
         self._state    = new_state
     
-    def _register_crossed_tiles(racer, prev_state, new_state, track_grid, engine):
-        """
-        Call this INSTEAD of the single-tile grid check after each move is applied.
-        """
-        crossed = engine.get_crossed_tiles(
-            prev_state.x, prev_state.y,
-            new_state.x,  new_state.y
-        )
 
-        for (cx, cy) in crossed:
-            if cy < 0 or cy >= len(track_grid) or cx < 0 or cx >= len(track_grid[0]):
-                continue
-            tile = track_grid[cy][cx]
-
-            # Checkpoint tiles: values 4, 5, 6 … (sequential encoding)
-            if tile >= 4:
-                cp_id = tile  # e.g. 4 = first checkpoint, 5 = second, etc.
-                expected = 4 + len(racer.checkpoints_cleared)
-                if cp_id == expected and cp_id not in racer.checkpoints_cleared:
-                    racer.checkpoints_cleared.add(cp_id)
-                    racer.last_checkpoint_pos = (cx, cy)
-
-            # Finish line tile = 3
-            elif tile == 3:
-                all_cps = set(range(4, 4 + _count_checkpoints(track_grid)))
-                if racer.checkpoints_cleared >= all_cps and not racer.finished:
-                    racer.laps_completed += 1
-                    if racer.laps_completed >= racer.total_laps:
-                        racer.finished = True
-                        racer.finish_turn = racer_turn_counter  # your existing turn var
-                    else:
-                        racer.checkpoints_cleared.clear()
 
 
         def _count_checkpoints(track_grid: list) -> int:
