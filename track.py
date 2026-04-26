@@ -3,7 +3,7 @@ import settings as s
 import json
 import os
 
-class Track:  #rename to match main
+class Track: 
     def __init__(self, image_path):
         """
         Loads an image and converts it into a 2D Grid (List of Lists).
@@ -48,7 +48,7 @@ class Track:  #rename to match main
                 found_start = False
 
                 # Define sample offsets (Top-Left, Center, Bottom-Right, etc.)
-                offsets = [5, 10, 15]
+                offsets = [self.TILE_SIZE // 4, self.TILE_SIZE // 2, 3 * self.TILE_SIZE // 4]
 
                 for dy in offsets:
                     for dx in offsets:
@@ -92,7 +92,7 @@ class Track:  #rename to match main
 
             self.grid.append(row_data)
 
-    # --- BUILD TRACK FROM GA GRID (no image needed) ---
+
 
     @classmethod
     def from_grid(cls, grid):

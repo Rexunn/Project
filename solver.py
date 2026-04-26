@@ -57,14 +57,12 @@ class AStarSolver:
 
     # ── Heuristic (single-target) ───────────────────────────
 
-    def set_goals_from_list(self, coords_list: list) -> None:
-        self.current_goals = coords_list
 
-    def heuristic(self, state) -> float:
-        """
+    """def heuristic(self, state) -> float:
+        
         Chebyshev distance to nearest goal tile / max_speed.
 
-       """
+       
         if not self.current_goals:
             return 0.0
         max_speed = self.engine.max_speed
@@ -72,7 +70,7 @@ class AStarSolver:
             max(abs(state.x - gx), abs(state.y - gy))
             for gx, gy in self.current_goals
         ) / max_speed
-
+    """
     # ═══════════════════════════════════════════════════════════════════════════
     # Single-target A*  (used by GA fitness)
     # ═══════════════════════════════════════════════════════════════════════════
@@ -375,18 +373,7 @@ class AStarSolver:
         expl = [CarState(s[0], s[1], s[2], s[3]) for s in explored]
         return None, expl
 
-    # ── Path reconstruction (legacy — kept for external callers) ─────────────
-
-    def _reconstruct_ordered_path(self, came_from: dict,
-                                   current: OrderedCarState) -> list:
-        """Back-trace from goal; return list of CarState objects."""
-        path = []
-        node = current
-        while node is not None:
-            path.append(node.to_car_state())
-            node = came_from[node]
-        path.reverse()
-        return path
+   
 
     # ── Fixed pipeline (BFS comparison only) ─────────────────────────────────
 
@@ -492,13 +479,3 @@ class AStarSolver:
                         queue.append(nb)
             clusters.append(list(current_cluster))
         return clusters
-
-    # ── Path reconstruction (base states) ────────────────────────────────────
-
-    def _reconstruct_path(self, came_from: dict, current) -> list:
-        path = []
-        while current is not None:
-            path.append(current)
-            current = came_from[current]
-        path.reverse()
-        return path

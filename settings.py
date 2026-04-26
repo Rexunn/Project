@@ -16,7 +16,7 @@ green   = (0,   255, 0)
 blue    = (0,   0,   255)
 yellow  = (255, 255, 0)
 cyan    = (0,   200, 200)
-# ── UI Palette & Backgrounds ─────────────────────────────────────────────────
+
 dark_bg    = (12,  12,  22)
 panel_bg   = (20,  20,  35)
 accent     = (100, 180, 255)
@@ -57,16 +57,7 @@ ghost        = (100, 100, 255, 150)
 ghost_crash  = (255, 100, 100, 150)
 ghost_finish = (100, 255, 100, 150)
 
-# ── Flash UI Palette ─────────────────────────────────────────────────
-FLASH_PANEL_BG     = (8,  8,  18)
-FLASH_PANEL_BORDER = (70, 70, 110)
-FLASH_GOLD         = (255, 205, 0)
-FLASH_TEAL         = (0,  200, 180)
 
-# ── Trail System  ─────────────────────────────────────────────────────
-TRAIL_LENGTH    = 9     # how many historic positions to store per racer
-TRAIL_MIN_ALPHA = 15    # alpha at the oldest dot
-TRAIL_MAX_ALPHA = 145   # alpha at the newest dot (just behind the racer)
 
 # ── Loading hints ─────────────────────────────────────────────────────────────
 LOADING_HINTS = [
@@ -110,7 +101,11 @@ WEATHER_COLOURS = {
     "Snowy": (200, 220, 255),
 }
 
-
+WEATHER_LABELS = {
+    "Sunny": "Sunny",
+    "Rainy": "Rainy",
+    "Snowy": "Snowy",
+}
 
 # ── Obstacle system ─────────────────────────────────────────────────
 OBSTACLE_COUNT = 5          # obstacles placed per race
@@ -134,7 +129,16 @@ GA_SHARPNESS_PRESETS = {
     "Sharp":  {"carve_radius": 1, "mut_variance": 5, "jitter": 6},
 }
 
+# ── Flash UI Palette ─────────────────────────────────────────────────
+FLASH_PANEL_BG     = (8,  8,  18)
+FLASH_PANEL_BORDER = (70, 70, 110)
+FLASH_GOLD         = (255, 205, 0)
+FLASH_TEAL         = (0,  200, 180)
 
+# ── Trail System  ─────────────────────────────────────────────────────
+TRAIL_LENGTH    = 9     # how many historic positions to store per racer
+TRAIL_MIN_ALPHA = 15    # alpha at the oldest dot
+TRAIL_MAX_ALPHA = 145   # alpha at the newest dot (just behind the racer)
 
 # ── GA Generation Flavour Texts ─────────────────────────────────────
 GA_LOADING_TEXTS = [

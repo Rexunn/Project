@@ -104,11 +104,11 @@ class GameStateManager:
 
 
 
-        def _count_checkpoints(track_grid: list) -> int:
-            """Count distinct checkpoint tile IDs (values >= 4) in the grid."""
-            found = set()
-            for row in track_grid:
-                for val in row:
-                    if val >= 4:
-                        found.add(val)
-            return len(found)
+    def _count_checkpoints(track_grid: list) -> int:
+        """Count distinct checkpoint tile IDs (values >= 4) in the grid."""
+        found = set()
+        for row in track_grid:
+            for val in row:
+                if val >= 4:
+                    found.add(val)
+        return len(found)

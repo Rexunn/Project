@@ -198,8 +198,8 @@ class GeneticAlgorithm:
                  population_size: int  = 20,
                  generations:     int  = 35,
                  mutation_rate:   float = 0.3,
-                 num_waypoints:   int  = 6,        # Commit 8
-                 sharpness:       str  = "Normal"  # Commit 8
+                 num_waypoints:   int  = 6,        
+                 sharpness:       str  = "Normal"  # 
                  ):
         self.cols = s.screen_width  // 20
         self.rows = s.screen_height // 20
@@ -208,7 +208,7 @@ class GeneticAlgorithm:
         self.generations     = generations
         self.mutation_rate   = mutation_rate
 
-        # Commit 8: store GA shape parameters
+        #store GA shape parameters
         self.num_waypoints = num_waypoints
         self.sharpness     = sharpness
         preset = s.GA_SHARPNESS_PRESETS.get(sharpness,
@@ -304,8 +304,6 @@ class GeneticAlgorithm:
     def mutate(self, chrome: Chromosome) -> None:
         """
         Shift waypoints by a random amount.
-        Commit 8: shift range comes from the sharpness mut_variance so
-        Gentle tracks mutate subtly and Sharp tracks mutate more dramatically.
         """
         changed = False
         for i in range(len(chrome.waypoints)):

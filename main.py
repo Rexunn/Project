@@ -4,14 +4,16 @@ main
 Full game entry point. State machine driven by GameStateManager.
 
 State flow:
-  BOOT_MENU  -> MAP_SELECT | GA_SETUP | LOADING
+  BOOT_MENU  -> MAP_SELECT | GA_SETUP | LOADING |TUTORIAL
   GA_SETUP   -> GENERATING | BOOT_MENU
   GENERATING -> LOADING | BOOT_MENU
   LOADING    -> AI_PREVIEW
   AI_PREVIEW -> PRE_RACE
   PRE_RACE   -> RUNNING
-  RUNNING    -> WIN | LOSE
+  RUNNING    -> WIN | LOSE | PAUSED
   WIN / LOSE -> PRE_RACE | GENERATING | BOOT_MENU
+  TUTORIAL   -> BOOT_MENU
+  PAUSED     -> RUNNING | BOOT_MENU
 """
 
 import math
@@ -33,6 +35,7 @@ from ghost_recorder import (
     load_ghost, 
     save_ghost, 
     track_id,
+    LEADERBOARD_MAX,
 )
 from obstacles import Obstacle, generate_obstacles          
 from solver import AStarSolver
@@ -1438,7 +1441,6 @@ def draw_player_triangle(screen, player_racer, track):
 
 def _is_top5_time(tid: str, turns: int) -> bool:
     """Return True if `turns` would rank in the top-5 for this track."""
-    from ghost_recorder import get_leaderboard, LEADERBOARD_MAX
     board = get_leaderboard(tid)
     if len(board) < LEADERBOARD_MAX:
         return True

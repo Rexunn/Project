@@ -28,12 +28,7 @@ class Racer:
     """
     A car competing in the race.
 
-    Wraps CarState with:
-    - Display info  (color, name, type)
-    - Race progress (checkpoints, laps, finish)
-    - Lives system  (Commit 10) — only meaningful for PLAYER type
-    - Ghost recording buffer (Commit 14) — player records each position
-    - CPU Hard pre-computed path + solver stats
+
     """
 
     def __init__(self, state: CarState, color, racer_type: str, name: str):

@@ -2,17 +2,6 @@
 game_engine.py
 --------------
 Discrete grid physics.
-
-Commit 3: now weather-aware.
-  set_weather(mode) updates the three physics params without rebuilding
-  the engine — called from main.py just before RUNNING starts.
-
-Weather effects on get_legal_moves():
-  Sunny  — normal (accel ±2, max speed 5, free braking)
-  Rainy  — reduced grip (accel ±1, max speed 3)
-  Snowy  — momentum carry: normal acceleration but braking against the
-            current velocity direction is limited to 1 per axis, so the
-            car can't scrub speed as quickly (wheel-spin / sliding).
 """
 
 import settings as s
