@@ -1,114 +1,86 @@
 CHANGELOG - Racetrack AI Project
 =================================
 
-2026-03-12 | GA Track Generator with Timing Debug
---------------------------------------------------
-- Created ga.py with Chromosome and GeneticAlgorithm classes
-- Chromosome represents a track as a 2D grid (0=wall, 1=road, 2=start, 3=finish)
-- GA evolves population of 20 grids over 35 generations
-- Fitness scored by A* solvability: unsolvable = 0, longer path = higher score
-- Tournament selection, single-point crossover, random mutation, elitism
-- Added per-generation timer to profile performance bottlenecks
-- Updated track.py: added Track.from_grid() classmethod to build tracks from GA grids
-- Updated solver.py: astar_search() and solve() now return explored states for debug
-- Updated main.py: added GENERATING state, N key on menu, ghost visualization (G key)
+ Week 1 (Nov 30 - Dec 6)
+* Getting Started: Kicked off the prototype sprint for the final year project.
+* Got the basic Pygame game loop running with arrow-key acceleration and a visual velocity vector.
+* Set up a 4-tuple (x, y, vx, vy) for the CarState to make it hashable for A* later.
+* Built the first physics engine iteration to check the 9 possible legal acceleration moves.
+* Made a quick 9-point scanner to parse PNG track images by pixel color (walls, roads, start/finish)
+* Housekeeping: Consolidated repos from "UOLProject" down to just "Project"
 
-2026-03-12 | Block-Based Generation for Wider Corridors
---------------------------------------------------------
-- Changed random_grid() to generate in 3x3 blocks instead of individual tiles
-- Guarantees corridors are at least 3 tiles wide (driveable by humans)
-- Updated mutate() to flip 3x3 blocks to preserve corridor width
-- Added fitness penalty for narrow single-tile gaps, bonus for wide corridors
-- Generation time dropped from ~55s to ~7s (block grids are simpler for A*)
+ Week 4 (Dec 23)
+* Note: Finally back at it after the UoL assessment period took out the last three weeks.
+* Track Engine: Rewrote the track parser so it dynamically loads and scales real PNGs at runtime.
+* Refactoring: Cleaned up the architecture a lot. Pulled the game engine into game_engine.py to decouple physics from the main loop. 
+* Made main.py just handle the View/Controller. Trimmed down CarState to speed up object creation for A*.
 
-2026-03-12 | Waypoint-Based Loop Track Generation
---------------------------------------------------
-- Rewrote Chromosome class: tracks are now defined by 8 waypoints in a loop
-- Waypoints placed in a rough circle with random jitter for variety
-- Grid built by carving 4-tile-wide corridors between consecutive waypoints
-- Last waypoint loops back to first = closed racing circuit
-- Start at waypoint 0, finish at last waypoint, checkpoints at every other waypoint
-- Crossover changed to uniform (mix waypoints from two parents)
-- Mutation now shifts waypoint positions by up to 5 tiles (creates meanders)
-- Fitness rewards path length + direction changes (more turns = better circuit)
-- Removed early exit threshold (loop tracks need full evolution)
-- All 10/10 tracks solvable in testing, total time ~8s
+ Week 8 (Jan 24)
+* A* is Alive: Got the first working A* pathfinder running on the 2D grid!
+* Using a priority queue for the open set and Euclidean distance for the heuristic. Wired it into the main loop to visualize the path.
+* Bug fix: Spent way too long trying to figure out why the grid wasn't rendering... turned out I flipped the x and y axes when accessing the array (grid[y][x])
 
-2026-03-13 | Racer Class and Race Settings
--------------------------------------------
-- Added Racer class to car.py: wraps CarState with color, type, name, checkpoint tracking
-- Racer types: PLAYER, CPU_EASY, CPU_MEDIUM, CPU_HARD
-- Added race settings to settings.py: turn timer (3s), racer colour map
+ Week 10 (Feb 2-3)
+* Added a main menu to make it feel like an actual game.
+* Bug fix: A* was silently failing because I was comparing CarState objects directly in the closed set. Swapped to tuple-based hash equality and it works
 
-2026-03-13 | Turn-Based Racing with Player + CPU Opponents
------------------------------------------------------------
-- Complete rewrite of main.py RUNNING state from path replay to turn-based racing
-- Player controls: arrow keys select acceleration (-2 to +2), SPACE confirms, 3s timer
-- CPU Easy: picks random legal move each turn (no strategy)
-- CPU Medium: greedy move toward nearest uncleared checkpoint (Manhattan distance)
-- CPU Hard: follows pre-computed optimal A* path
-- All 4 racers race simultaneously on the same track
-- Checkpoint tracking per racer: must clear all checkpoints before finish counts
-- Legal move visualization: dots show where each acceleration lands
-- Timer bar, leaderboard, turn counter UI
-- GAMEOVER shows winner name + color, turn count
-- Race ends on: first finish, all crash, or 200 turn limit
-- GENERATING now flows into LOADING to set up racers automatically
+ Week 11 (Feb 15-16)
+* Checkpoints & Physics: Massive updates this week
+* Built a flood-fill algorithm to group adjacent yellow tiles into logical checkpoint "islands"
+* Upgraded A* to handle lists of coordinates so it can pathfind through multiple stops sequentially
+* Bug fix: Fast cars were tunneling through walls between frames. Implemented Bresenham-style raycasting to fix the collision detection
 
-2026-03-18 | AI Visibility: Stats HUD and Pre-computed Ghost Line
-------------------------------------------------------------------
-- Updated solver.py: solve() now times its execution and returns total solve time alongside the path and explored states.
-- Updated car.py: Racer class now stores explored_states and solvetime.
-- Added live AI stats to the HUD in main.py: dynamically displays path length, nodes explored, and calculation time for the CPU Hard racer.
-- Implemented visual "ghost line" rendering in main.py using pygame.draw.lines to show the AI's pre-computed optimal route.
-- Restructured drawing logic in the RUNNING state to guarantee the track, ghost line, racers, and leaderboard render cleanly every frame outside of the event loop.
+ Week 15 (Mar 12-13)
+* Procedural Generation & CPU: Huge week for the architecture. 25] The Genetic Algorithm (GA) is in
+* First GA try used 2D integer grids, evolving over 35 generations
+* Upgraded the track generation to an 8-waypoint polar ring.Carves corridors between points to make closed circuits.It generates 10/10 solvable tracks in ~8 seconds now
+* Implemented full turn-based racing (3-second timer, space to confirm)
+* CPUs race at the same time: Easy does random moves, Medium is greedy for checkpoints, Hard uses the precomputed A* path
 
-2026-03-23 | Algorithm Comparison and Pre-Race Stats Screen
-------------------------------------------------------------
-- Added bfs_search() to solver.py as an uninformed search baseline by duplicating A* and removing the distance heuristic.
-- Added academic justification comment to the heuristic divisor in solver.py to prove admissibility based on the engine's velocity cap.
-- Updated the solve() method to accept a use_bfs parameter, allowing seamless toggling between A* and Breadth-First Search.
-- Fixed an edge-case bug in solve() where unreachable checkpoints caused a tuple unpacking crash by ensuring failed searches return a 0 solve time.
-- Implemented a new "READY" game state in main.py that runs a silent BFS comparison after track generation.
-- Added a pre-race UI overlay to display a side-by-side comparison of A* vs. BFS performance (solve time and nodes explored).
-- Updated the main event loop to pause on the READY screen until the player presses SPACE to begin the race.
+ Week 16 (Mar 18-19)
+* Added an AI stats HUD to show the A* solver's path length, explored nodes, and time
+* Made the CPU Hard route visible as a dotted line on the track
+* Playtesting showed 3 seconds was too fast, bumped the turn timer to 5s
+* Added fun random color themes for generated tracks (tarmac, forest, vice city, snow)
 
-2026-03-29 | GA Track Polish and Intelligence Upgrade (Phase 4)
------------------------------------------------------------------------
-- Refactored track carving logic in ga.py: replaced the square drawing brush with a circular brush (_carve_circle) to eliminate jagged corners and soften track edges.
-- Upgraded track generation math: completely replaced straight-line corridor carving with Catmull-Rom splines to calculate and draw sweeping, organic curves between waypoints.
-- Enhanced GA fitness function in ga.py: implemented a "complexity bonus" that analyzes the A* solver's velocity vector changes to reward technical circuits.
+ Week 17 (Mar 23)
+* Academic Stuff: Implemented standard BFS just so I have a baseline to compare A* against for the write-up. Added a side-by-side stats screen after each track generation to compare solve times
 
-2026-04-05 | UI Overhaul, Game Feel, and Clustering Fix (Phase 5)
------------------------------------------------------------------------
-- Upgraded checkpoint drawing logic in ga.py to span the full width of the track.
-- Added dynamic, real-time sorting to the leaderboard based on race progress and Manhattan distance to the next checkpoint.
-- Implemented a velocity HUD gauge to visually indicate current speed against the engine's physics cap.
-- Added visual polish: pulsing orange highlight for active checkpoints and sequential black/white numbering.
-- Fixed checkpoint splitting bug by updating solver.py _get_clusters() to use 8-way diagonal connectivity instead of 4-way.
+ Week 18 (Mar 29)
+* Visual Polish: Tracks look so much better. Swapped out the angular corridors for Catmull-Rom splines so the tracks have smooth, organic curves. Used a circular brush instead of a square one to fix jagged corners
+* Tweaked the GA to reward tracks that force the A* solver to change direction a lot. The tracks are much more demanding now
 
-2026-04-11 | AI Tweaks, Track Flow, and Lap System (Phase 6 Block A & B)
------------------------------------------------------------------------
-- Updated turn timeout penalty to carry momentum instead of stopping the car dead (sets acceleration to 0 instead of velocity).
-- Biased CPU Easy move selection to favor maintaining forward momentum to prevent backward driving.
-- Merged start and finish markers into a single unified Start/Finish transverse line to establish proper closed-circuit flow.
-- Added multi-lap state tracking variables (laps_completed, total_laps) to Racer class.
-- Implemented multi-lap game logic: checkpoints now reset upon lap completion, and UI updates to show current lap.
-- Upgraded A* solver to calculate continuous multi-lap racing mega-paths without stopping at the line.
+ Week 19 (Apr 3-6)
+* UI & Game Feel: Full UI overhaul—pulsing active checkpoints, live leaderboards, velocity gauges.
+* Upgraded checkpoint splitting to 8-way diagonal to fix false island bugs.
+* Bug fix: CPUs won't drive backwards anymore. Also, timing out your turn drops your acceleration to zero but keeps your momentum, which feels way more realistic.
 
-2026-04-11 | Menu Track Selector, JSON Saving, and Sequence Encoding (Phase 6 Block C)
------------------------------------------------------------------------
-- Implemented JSON serialization in track.py (save_to_file, from_file) to save and load 2D grids.
-- Added keyboard hook (S) and UI instruction to save newly generated tracks with a timestamp from the READY screen.
-- Tuned GA: reduced mutation variance (-2 to 2) and complexity bonus to generate smoother, less chaotic circuits.
-- Implemented main menu track selector using os module to dynamically load saved .json circuits from the directory.
-- Encoded sequential track flow directly into GA grids (using values 4, 5, 6...) to completely fix geometric sorting bugs.
-- Refactored main engine to extract encoded checkpoints sequentially with fallback support for older JSON saves.
-- Refactored A* solver phase 1 to explicitly follow the encoded sequence list rather than geometric nearest-neighbor, fixing CPU backward-driving bugs.
+ Week 20 (Apr 8-13)
+* Multi-lap & Saving: Multi-lap racing works. Upgraded A* to calculate continuous mega-paths across laps without stopping at the finish line. 54]
+* Can finally save and load tracks to JSON. Made a menu selector that scans for saved files.
+* Encoded the checkpoint sequence directly into the tile values, completely wiping out my geometry sorting bugs.
+* Added a quick 'R' restart key to bypass recomputing A*.
 
-2026-04-13 | Playtester UX Polish & Optimization (Phase 6)
------------------------------------------------------------------------
-- Tuned track generation: reduced waypoints from 8 to 6 and shortened races to 2 laps to improve track readability based on playtester feedback.
-- Implemented a memory-cached instant restart feature (R key) on the game over screen to instantly reset the race and bypass redundant A* recalculations.
-- Revamped the READY screen to prioritize a player-first controls tutorial.
-- Hid technical A* and BFS comparison stats behind a new Developer Mode toggle (T key) to avoid overwhelming casual players.
+ Week 21 (Apr 15-18)
+* System Overhaul: Went crazy with 30+ commits.
+* Locked down the architecture with a proper GameStateManager FSM so transitions don't break.
+* Ripped all the drawing code out of main.py and into a clean ui.py module.
+* Added weather! 68] Sunny, Rainy, and Snowy (snow completely limits braking).
+* Added hazards: Oil spills randomise acceleration, Potholes cost a life.
+* Added wrong-way detection using dot products of your velocity against the track's forward vector. Flashes a banner if you turn around. 73]
+* Added a setup screen to tweak GA parameters like waypoint count and track sharpness
+
+ Week 22 (Apr 21-22) 79]
+* Ghosts & Leaderboards: Added persistent top-5 leaderboards (MD5 hashing the grids)
+* Added Ghost Car replays so you can race your PB
+* You can now name your generated tracks before saving them
+* Proved my A* heuristic is admissible by upping the divisor
+
+ Week 23 (Apr 23-26)
+* Final Polish & Submission
+* Swapped heuristic to Chebyshev distance (properly admissible for a 4D state space where diagonals are legal)
+* Optimized the solver using heapq
+* Player now respawns at the last cleared checkpoint instead of the start line
+* Added fading dot-trails behind cars and a marker over the player so you don't lose yourself in the crowd
+* Gave the whole UI a dark-panel Flash-style refresh
+* Wrote the README.md Project is basically done

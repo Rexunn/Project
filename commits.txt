@@ -1,0 +1,139 @@
+2025-11-30 | 25f7e14 | Initial Commit
+2025-12-23 | 647fe28 | track.py revamp to utilise png
+2025-12-23 | b12efbf | track revamp
+2025-12-23 | 800738a | car optimisation for faster ai
+2025-12-23 | ebf346d | game engine retrival
+2025-12-23 | 66bebe4 | main retrival
+2026-01-24 | 4f1f68a | a* implementation + track debug (not showing track)
+2026-02-02 | f7665a1 | dont compare cars
+2026-02-02 | d90e871 | main menu implementation + clearer start/finish
+2026-02-15 | efa1d09 | Added Car state comparison for priotiryqueue + defined checkpoint colours
+2026-02-15 | 033f66e | Added CarState comparison for priorityqueue +  defined checkpoint colours
+2026-02-15 | 22843dd | updated grid gen to detect yellow checkpoints
+2026-02-15 | 152f798 | Added cluster algorithm to detect checkpoint "islands" + implemented tile detection
+2026-02-15 | c4cab92 | updated A* to accept coordinate lists not tile id
+2026-02-15 | 654e3d1 | Implemented nearest-neighbour logic for dynamic checkpoints
+2026-02-15 | a6c1d03 | Dynamic physics mask to toggle tile state
+2026-02-15 | f3eae1a | implemented raycasting collisons
+2026-02-15 | ce7fa9c | fix: implemented raycasting to prevent car from tunneling through walls
+2026-02-15 | b5e3d98 | feat: implement checkpoint-based pathfinding with timer and stats tracking
+2026-02-16 | 9316ca1 | fix: checkpoint counting uses clusters instead of individual tiles
+2026-03-12 | db64a9c | feat: GA track generator with timing debug
+2026-03-12 | 9256218 | feat: waypoint-based loop track generation
+2026-03-13 | 1dcf758 | feat: add Racer class and race settings
+2026-03-13 | 0149c10 | feat: turn-based racing with player controls and CPU opponents
+2026-03-14 | 5fb2413 | fix: sequential checkpoint order and timer forces stop
+2026-03-14 | e12b916 | fix: wall collision crashes the racer instead of stopping
+2026-03-18 | 5917380 | feat: add A* stats HUD and pre-computed ghost line rendering
+2026-03-19 | b1f7c1b | polish: increase turn timer to 5s, update ghost line to dots, and add track themes
+2026-03-23 | 10c20ac | feat: implement BFS comparison and pre-race stats screen
+2026-03-29 | 8dcd968 | feat: implement Catmull-Rom splines for organic track curvature
+2026-03-29 | 4c19a4c | feat: add direction-change bonus to GA fitness function to encourage complex circuits
+2026-04-03 | f2a3d40 | feat: Phase 5 UI overhaul and fix 8-way checkpoint clustering
+2026-04-03 | 5ed1a36 | fix: update turn timeout penalty to carry momentum
+2026-04-04 | 3d1554b | feat: bias Easy CPU move selection to maintain forward momentum
+2026-04-06 | cbc2e41 | feat: add multi-lap tracking variable to racer class
+2026-04-08 | d9d68c4 | feat: implemented multi-lap logic + lap ui
+2026-04-09 | b11d8cf | feat: upgdraded A* solver for multi-lap racing
+2026-04-09 | fc3fd46 | feat: implement JSON to save/load track grids
+2026-04-10 | 2a19532 | feat: add ui instrcutions on how to save tracks
+2026-04-11 | 73a603a | tune: reduce GA mutation variance + complexity bonus +testing track save
+2026-04-11 | e5afe06 | feat: sequential track flow to fix sorting bugs
+2026-04-12 | 0dc79f2 | refactor: upgrade main engine to extract checkpoints sequentially
+2026-04-12 | a28ec9f | fix: refactor A* solver to follow sequnce list rather than nearest neighbour
+2026-04-12 | 8c4a33e | tune: reduce track complexity
+2026-04-12 | 7d37774 | feat: implement memory-cached instant restart to bypass redundant recalculations
+2026-04-13 | 129e2cd | feat: revamp ready screen with small tutorial and hide ai stats behind dev mode toggle
+2026-04-13 | 88091ce | fix: implement swept path collion detection to prevent jumping finish line
+2026-04-15 | 22752f3 | feat: gamestate manager implemented + wired to main
+2026-04-15 | d1fe16c | feat: UI decoupling - modular ui.py for maintainability
+2026-04-15 | bf79215 | feat: update imports to integrate ui export list, and prepare for ghost modules
+2026-04-16 | 034da18 | feat: claude ui overhaul + ghost recording implementation
+2026-04-16 | bdb68b3 | fix: player lap retention on death
+2026-04-16 | 6909ac1 | feat: add constants for weather, obstacles, and GA preset
+2026-04-16 | bfb8263 | feat: implement weather-aware physics engine
+2026-04-17 | 77d4104 | feat: integrate weather selection into pre-race and HUD
+2026-04-17 | 83c686f | feat: create obstacle data model and procedural generator
+2026-04-17 | 4b65955 | feat: add obstacle collision effects and rendering
+2026-04-17 | 8f1164e | feat: implement GA_SETUP state for parameter selection
+2026-04-18 | 6ccb536 | feat: wire UI parameters to GA generation logic
+2026-04-18 | ed7d3b6 | feat: testing module integration
+2026-04-18 | d42adad | feat: ai preview fade in
+2026-04-18 | 6bb8535 | fix: added wrongway field
+2026-04-18 | a30686f | fix: checkpoint placement priortise straightaways
+2026-04-18 | 2175565 | feat: implement curvature score method
+2026-04-18 | 9aceeef | feat: added optimal line preview
+2026-04-18 | 22cdd60 | feat: added wrong way banner
+2026-04-18 | 2a75ea1 | feat: import new ui into main
+2026-04-18 | bb80489 | feat: forward vector method for dot product & cpu ez filter
+2026-04-18 | 0ccc8c9 | feat: updated main variables for line preview
+2026-04-18 | 2d02f9e | feat: updated ai preview variables + forward vectors for wrong way
+2026-04-18 | 5065d1f | feat: update ai_preview block for fade in
+2026-04-18 | 8327ffc | feat: update ai preview event handler
+2026-04-18 | 9db8263 | feat: added wrong way check in input phase
+2026-04-18 | 46925cf | feat: added wrong way banner to running draw
+2026-04-18 | c613a86 | feat: pass forward vector cpu ez in execute
+2026-04-20 | 35d7174 | feat: unit testing results
+2026-04-21 | 7326545 | fix: increased heuristic divisor, A* never overestimates + unit testing
+2026-04-21 | 6ae385f | feat: compute wrong way helper
+2026-04-21 | ae27e90 | fix: inline detection for player
+2026-04-21 | 8f9c0c0 | feat: reset wrong way flag at turn advance
+2026-04-21 | 7976410 | fix: checkpoint curvature filter hardening
+2026-04-21 | d1d046d | feat: implement footprint safe function (never on checkpoint/start)+ tile border border
+2026-04-21 | 24da8e6 | fix: obstacles eligible conditions
+2026-04-21 | edfbd96 | feat: match obstacle check to footprint set by generat_obstacles
+2026-04-21 | 4f47727 | feat: implement naming overlay to ui
+2026-04-21 | 822da5a | fix: added naming overlay to ui import
+2026-04-21 | 93f619c | feat: implemented naming mode bool and buffer to variable decleration
+2026-04-21 | fa3c539 | fix: pre race key bind with new naming mode + buffer
+2026-04-21 | 3c5d36e | feat: added naming mode event capture
+2026-04-21 | 9526eb9 | feat: updated Pre Race footer controls+add overlay render call
+2026-04-21 | b72b4cf | feat: implemented date nowiso + nowdate for leaderboard dates
+2026-04-21 | ebface2 | feat: implement old scheme converter
+2026-04-21 | 2b15243 | featL migrate old schema transparently
+2026-04-21 | 36727b1 | feat: added indepenent ghost update + leaderboard update
+2026-04-21 | 8110ba2 | feat: added get leaderboard
+2026-04-21 | cfd4561 | fix: update ghost car replay to support new + old schema
+2026-04-21 | a7dba4c | feat: added track leaderboard ui
+2026-04-21 | c8c0a32 | fix: updated ghost record import
+2026-04-21 | 1927c58 | chore: update ui import
+2026-04-21 | d41b0f4 | feat: added win transition passing racer name
+2026-04-21 | 8d232d4 | chore: added leaderboard call to win draw
+2026-04-22 | 54714f0 | fix: implement last drawn tracker to reduce GA generation
+2026-04-22 | cbd3944 | fix: decrease manhattan divisor
+2026-04-22 | 05e1b9b | chore: updated save ghost with racer name
+2026-04-22 | 469e0b2 | fix: timezone syntax + tested map saving
+2026-04-23 | 3b0b41c | feat: implemented chebyshev distance for admissiblity
+2026-04-23 | e61e4e6 | refactor: unify chebyshev distance across codebase
+2026-04-23 | 086167f | fix: leadboard nameerror crash
+2026-04-23 | 53b8c91 | feat: added last checkpoint poisition for respawn point
+2026-04-23 | 7957b9d | chore: unfied last checkpoint respawn in main
+2026-04-23 | f0ada92 | chore: unfied last checkpoint respawn in main
+2026-04-24 | 02e9215 | feat: implement chebyshev distance for admissibility
+2026-04-24 | 9856f0c | feat: using heapq instea of priorityqueue to reduce overhead
+2026-04-24 | fbe6361 | feat: optimized solver with claude help
+2026-04-24 | 9107067 | feat: add win phase variable to main init(block)
+2026-04-24 | 6f11e35 | feat: added top5 time module helper
+2026-04-24 | b9e654f | feat: implement win state
+2026-04-25 | 2b35927 | feat: implement ghost defered post game flow
+2026-04-25 | eb09f23 | feat: implemented checkpoint based respawns
+2026-04-25 | 6759123 | feat: flash style ui
+2026-04-25 | 2b47a6b | feat: implement previous state trail and player marker
+2026-04-25 | 464b2e3 | feat: updated loading flavour text during ga
+2026-04-25 | b4e4e76 | feat: added tutorial page for new players
+2026-04-25 | 4246625 | feat: implemented safe pause state
+2026-04-25 | 21c6b6f | feat: adding pause menu
+2026-04-25 | 2c12196 | fix: import new ui
+2026-04-25 | 2470d44 | Fix: added new state valid transitions
+2026-04-25 | f348c63 | fix: pause state handler
+2026-04-25 | 7a27740 | fix: six duplicated draws
+2026-04-25 | f5cfe7f | fix: six duplicated draws
+2026-04-25 | 135c15c | fix: new _record defined
+2026-04-25 | 9f04d33 | fix: added tutorial to menu option index
+2026-04-25 | 74153c9 | fix: allign legacy callers with chebyshev for correctness
+2026-04-25 | e8f9956 | fix:  Implemented bresenham's algorithm for continuous collision detection
+2026-04-25 | 0093b8c | fix: inverted player triangle
+2026-04-25 | 0579d87 | feat: implemented continuous collision detection
+2026-04-26 | 683dee1 | chore: removed duplicated constanats
+2026-04-26 | beef237 | Create README.md for Racetrack AI simulation
+2026-04-26 | 3f82cd0 | Update section headers in README.md
