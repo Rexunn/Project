@@ -43,26 +43,30 @@ from solver import AStarSolver
 from track import Track
 from ui import (
     draw_boot_background,
-    draw_ga_setup,                                          
+    draw_ga_setup,
+    draw_game_border,
     draw_hint_row,
     draw_leaderboard,
     draw_lives,
     draw_menu_list,
-    draw_obstacles,                                         
+    draw_obstacles,
     draw_overlay,
     draw_panel,
     draw_place_badge,
     draw_pulsing_text,
+    draw_sidebar,
     draw_speed_gauge,
     draw_text,
     draw_timer_bar,
-    draw_weather_badge,                                     
+    draw_weather_badge,
     draw_wrong_way_banner,
     draw_static_path_preview,
-    draw_naming_overlay,   
-    draw_track_leaderboard,     
-    draw_tutorial_screen,  
-    draw_pause_menu,                       
+    draw_naming_overlay,
+    draw_nav_arrow,
+    draw_floating_speed,
+    draw_track_leaderboard,
+    draw_tutorial_screen,
+    draw_pause_menu,
 )
 
 
@@ -403,49 +407,53 @@ def compute_cp_forward_vectors(checkpoint_clusters: list,
 
 def _compute_wrong_way(player_racer, cp_forward_vectors: list) -> bool:
     """
-    Compute whether the PLAYER racer is travelling significantly against
-    the intended circuit direction.
+    Determine whether the PLAYER is driving significantly against the
+    intended circuit direction.
 
-    CPU racers are directionally guided through separate mechanisms:
-      - CPU_EASY  : the cp_forward parameter in cpu_easy_move() filters
-                    candidate moves whose velocity opposes the circuit.
-      - CPU_MEDIUM: greedy targeting always points toward the next CP,
-                    so it cannot sustain a wrong-way vector by design.
-      - CPU_HARD  : follows a pre-computed ordered A* path; wrong-way
-                    movement is structurally impossible.
+    FIX — Cluster-sector approach
+    ───────────────────────────────
+    The previous implementation looked up the forward vector for the *next
+    uncollected* checkpoint.  On tracks with many small sectors this caused
+    false positives: when the player was between two checkpoints, the vector
+    for the upcoming CP could point almost perpendicular to their actual
+    position, wrongly flagging a legitimate move as "wrong way".
 
-    Parameters
-    ----------
-    player_racer      : Racer — must have type == "PLAYER"
-    cp_forward_vectors: list of (float, float) unit vectors, one per CP
+    The fix separates the track into explicit "sectors":
+      • Sector 0 : start → CP 0  (uses cp_forward_vectors[0])
+      • Sector i : CP i-1 → CP i (uses cp_forward_vectors[i])
+      • Final    : last CP → finish (uses cp_forward_vectors[-1])
 
-    Returns
-    -------
-    bool — True if the player is going wrong way this frame.
+    The player's current sector is determined by how many CPs they have
+    already cleared.  This is *exactly* the vector that describes the
+    intended direction inside that portion of the track, so the dot-product
+    check is always geometrically correct regardless of track shape.
+
+    CPU racers are handled by their own mechanisms; this function is
+    intentionally player-only.
     """
     assert player_racer.type == "PLAYER", (
         "_compute_wrong_way must only be called for the PLAYER racer. "
         f"Got type={player_racer.type!r}"
     )
 
-    nxt_cp = len(player_racer.checkpoints_cleared)
-
-    # All checkpoints already cleared — player is heading to finish.
-    # Any direction is valid at this stage; suppress the warning.
-    if nxt_cp >= len(cp_forward_vectors):
+    if not cp_forward_vectors:
         return False
 
-    fvx, fvy = cp_forward_vectors[nxt_cp]
+    nxt_cp = len(player_racer.checkpoints_cleared)
 
-    # Dot product of velocity against the forward circuit vector.
-    # Negative = moving against the circuit direction.
+    # ── Sector selection ────────────────────────────────────────────────────
+    # When the player has cleared all checkpoints (heading for finish) we use
+    # the last available vector; it still points roughly toward the finish.
+    sector_idx = min(nxt_cp, len(cp_forward_vectors) - 1)
+    fvx, fvy   = cp_forward_vectors[sector_idx]
+
+    # Dot product of velocity against the sector's forward vector.
     dot = player_racer.state.vx * fvx + player_racer.state.vy * fvy
 
-    # Speed guard: avoid false triggers when the player is barely moving
-    # or has just respawned (velocity is (0,0) at start_state).
+    # Speed guard: suppress the warning when barely moving / just respawned.
     spd = max(abs(player_racer.state.vx), abs(player_racer.state.vy))
 
-    return dot < s.WRONG_WAY_DOT_THRESHOLD and spd >= s.WRONG_WAY_MIN_SPEED    
+    return dot < s.WRONG_WAY_DOT_THRESHOLD and spd >= s.WRONG_WAY_MIN_SPEED
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -497,6 +505,7 @@ def main():
     turn_start_time: float = 0.0
     race_start_time: float = 0.0
     show_dev_stats:  bool  = False
+    crash_imminent:  bool  = False   # True when ALL legal moves lead to a crash
 
     # ── Ghost ─────────────────────────────────────────────────────────────────
     ghost_recorder: GhostRecorder   = GhostRecorder()
@@ -662,12 +671,15 @@ def main():
                 elif gsm == GameState.RUNNING and race_phase == "INPUT":
                     if event.key == pygame.K_ESCAPE:
                         pending_pause = True
-                    lim = engine.accel_limit if engine else 2
-                    if   event.key == pygame.K_UP:    player_ay = max(-lim, player_ay - 1)
-                    elif event.key == pygame.K_DOWN:  player_ay = min( lim, player_ay + 1)
-                    elif event.key == pygame.K_LEFT:  player_ax = max(-lim, player_ax - 1)
-                    elif event.key == pygame.K_RIGHT: player_ax = min( lim, player_ax + 1)
-                    elif event.key == pygame.K_SPACE: race_phase = "EXECUTE"
+                    # Block all move selection while crash imminent — player
+                    # must wait for the timer to expire and take the hit.
+                    if not crash_imminent:
+                        lim = engine.accel_limit if engine else 2
+                        if   event.key == pygame.K_UP:    player_ay = max(-lim, player_ay - 1)
+                        elif event.key == pygame.K_DOWN:  player_ay = min( lim, player_ay + 1)
+                        elif event.key == pygame.K_LEFT:  player_ax = max(-lim, player_ax - 1)
+                        elif event.key == pygame.K_RIGHT: player_ax = min( lim, player_ax + 1)
+                        elif event.key == pygame.K_SPACE: race_phase = "EXECUTE"
 
                 # ── WIN / LOSE ─────────────────────────────────────────────────
                 elif gsm.is_in(GameState.WIN, GameState.LOSE):
@@ -722,6 +734,10 @@ def main():
         if track:
             screen.fill(s.gray)
             track.draw(screen)
+            # Dark fill for sidebar area (overrides gray spill)
+            sidebar_bg = pygame.Surface((s.SIDEBAR_WIDTH, s.screen_height))
+            sidebar_bg.fill((10, 10, 22))
+            screen.blit(sidebar_bg, (s.GAME_WIDTH, 0))
         else:
             draw_boot_background(screen)
 
@@ -1004,26 +1020,47 @@ def main():
                 elif not player_racer.finished and not player_racer.crashed:
 
                     # ── Wrong-way detection (PLAYER only) ────────────────────
-                    # CPU racers are directionally guided through their own
-                    # mechanisms — see _compute_wrong_way() docstring for the
-                    # full justification of why this never runs for CPUs.
                     player_racer.wrong_way = _compute_wrong_way(
                         player_racer, cp_forward_vectors)
 
                     legal = engine.get_legal_moves(player_racer.state)
-                    draw_legal_moves(screen, legal, player_ax, player_ay,
-                                    player_racer.state, track)
-                    draw_timer_bar(screen, time_remaining, s.turn_time_limit)
-                    draw_text(screen, f"({player_ax:+d}, {player_ay:+d})",
-                            16, s.white, s.screen_width // 2,
-                            s.screen_height - 22)
+
+                    # ── Crash-imminent detection ──────────────────────────────
+                    # Pre-compute which legal nodes would actually survive
+                    # (engine.get_legal_moves already filters wall crashes, so
+                    # crash_imminent is True only when *no* legal moves exist).
+                    crash_imminent = (len(legal) == 0)
+
+                    if crash_imminent:
+                        # Player has no valid move — force the timer to drain.
+                        # Disable all input, show a warning, wait for EXECUTE.
+                        draw_timer_bar(screen, time_remaining, s.turn_time_limit)
+                        draw_text(screen, "NO VALID MOVES — BRACE FOR IMPACT",
+                                  20, s.red,
+                                  s.GAME_WIDTH // 2, s.screen_height // 2 - 30)
+                    else:
+                        # ── Build the set of visible node (grid) positions ────
+                        # Only positions that are on-screen and on a road tile
+                        # are shown; restrict keyboard selection to these too.
+                        visible_moves = [
+                            m for m in legal
+                            if 0 <= m.x < len(track.grid[0])
+                            and 0 <= m.y < len(track.grid)
+                        ]
+                        draw_legal_moves(screen, visible_moves,
+                                         player_ax, player_ay,
+                                         player_racer.state, track)
+                        draw_timer_bar(screen, time_remaining, s.turn_time_limit)
+                        draw_text(screen, f"({player_ax:+d}, {player_ay:+d})",
+                                16, s.white, s.GAME_WIDTH // 2,
+                                s.screen_height - 22)
 
                     # Oil-slick warning overlay
                     if oil_slick_turns > 0:
                         draw_pulsing_text(screen,
                                         f"OIL SLICK  ({oil_slick_turns} turns left)",
                                         22, (220, 140, 30),
-                                        s.screen_width // 2,
+                                        s.GAME_WIDTH // 2,
                                         s.screen_height // 2 - 30,
                                         frequency=4.0)
                 else:
@@ -1074,6 +1111,7 @@ def main():
                         else:
                             # Preserve lap data on respawn
                             racer.lives -= 1
+                            oil_slick_turns = 0   # clear ALL active status effects on crash
                             print(f"{racer.name} crashed! {racer.lives} lives left.")
                             if racer.lives <= 0:
                                 racer.crashed = True
@@ -1135,6 +1173,7 @@ def main():
                                     elif obs.type == "Pothole":
                                         obs.active = False
                                         racer.lives -= 1
+                                        oil_slick_turns = 0   # clear status effects on crash
                                         print(f"[POTHOLE] Racer hit a pothole! "
                                             f"{racer.lives} lives left.")
                                         if racer.lives <= 0:
@@ -1176,6 +1215,7 @@ def main():
                     player_ay       = 0
                     turn_start_time = time.time()
                     player_racer.wrong_way = False  # reset wrong-way status each turn
+                    crash_imminent  = False          # reset crash flag each turn
 
             # ── Drawing ───────────────────────────────────────────────────────
 
@@ -1199,19 +1239,26 @@ def main():
             draw_racers(screen, racers, track)
             draw_player_triangle(screen, player_racer, track)
 
+            # ── Navigation arrow (attached to player, points to next CP) ──────
+            draw_nav_arrow(screen, player_racer, checkpoint_clusters,
+                           track.TILE_SIZE)
+
+            # ── Floating speedometer above player ─────────────────────────────
+            draw_floating_speed(screen, player_racer, track.TILE_SIZE)
+
             if player_racer.wrong_way:
                 draw_wrong_way_banner(screen)
 
             # Respawn flash
             if time.time() < respawn_flash_until:
-                flash = pygame.Surface((s.screen_width, s.screen_height),
+                flash = pygame.Surface((s.GAME_WIDTH, s.screen_height),
                                     pygame.SRCALPHA)
                 flash.fill((255, 50, 50, 80))
                 screen.blit(flash, (0, 0))
                 draw_text(screen,
                         f"CRASHED!  {player_racer.lives} lives left",
                         36, s.red,
-                        s.screen_width // 2, s.screen_height // 2)
+                        s.GAME_WIDTH // 2, s.screen_height // 2)
 
             # ── HUD ───────────────────────────────────────────────────────────
 
@@ -1219,22 +1266,21 @@ def main():
             place = get_player_place(player_racer, racers, checkpoint_clusters)
             draw_place_badge(screen, place, 45, 30)
 
-            # Top-right: speed + lives
-            draw_panel(screen, s.screen_width - 90, 30, 160, 56, alpha=160)
-            draw_speed_gauge(screen,
-                            player_racer.state.vx, player_racer.state.vy,
-                            s.screen_width - 95, 22)
+            # Top-right (within game canvas): lives text + weather label
+            draw_panel(screen, s.GAME_WIDTH - 70, 30, 130, 44, alpha=160)
             draw_lives(screen, player_racer.lives, player_racer.max_lives,
-                    s.screen_width - 90, 46)
-
-            # Weather indicator below the HUD panel
+                       s.GAME_WIDTH - 70, 30)
             wcol = s.WEATHER_COLOURS.get(current_weather, s.white)
             draw_text(screen,
                     s.WEATHER_LABELS.get(current_weather, current_weather),
-                    13, wcol, s.screen_width - 90, 66, bold=False)
+                    11, wcol, s.GAME_WIDTH - 70, 46, bold=False)
 
-            # Right side: leaderboard
-            draw_leaderboard(screen, racers, checkpoint_clusters, current_turn)
+            # ── Game canvas border ────────────────────────────────────────────
+            draw_game_border(screen)
+
+            # ── Right sidebar (leaderboard + controls) ────────────────────────
+            draw_sidebar(screen, racers, checkpoint_clusters,
+                         current_turn, current_weather)
 
         # ═════════════════════════════════════════════════════════════════════
         # TUTORIAL
