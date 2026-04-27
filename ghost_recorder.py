@@ -1,13 +1,7 @@
 """
-ghost_recorder.py 
------------------------------------
+ghost_recorder.py
+-----------------
 Records the player's path through a race turn-by-turn,
-saves it if it beats the existing best, and replays it as
-a ghost car alongside the player in future races.
-
-Ghost files are stored in a  ghosts/  sub-directory as JSON.
-Each file is keyed by a short MD5 hash of the track's grid data,
-so each unique track gets its own record.
 """
 
 import hashlib
@@ -15,166 +9,182 @@ import json
 import os
 from datetime import datetime, timezone
 
-GHOST_DIR = "ghosts"
+GHOST_DIR       = "ghosts"
 LEADERBOARD_MAX = 5
+_SCHEMA_VER     = 2
 
 
-# ── Track identification ───────────────────────────────────────────────────────
+# ── Track identification ──────────────────────────────────────────────────────
 
 def track_id(grid: list[list[int]]) -> str:
-    """Stable 10-char ID for a track based on its grid content."""
+    """Return a stable 10-char hex ID derived from the grid content."""
     return hashlib.md5(str(grid).encode()).hexdigest()[:10]
 
 
-def ghost_filepath(tid: str) -> str:
+def _ghost_filepath(tid: str) -> str:
     os.makedirs(GHOST_DIR, exist_ok=True)
     return os.path.join(GHOST_DIR, f"ghost_{tid}.json")
 
 
-# ── Schema helpers ────────────────────────────────────────────────────────────
+# ── Timestamp helpers ─────────────────────────────────────────────────────────
 
 def _now_iso() -> str:
-    """UTC timestamp string, second precision."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _now_date() -> str:
-    """UTC date string for leaderboard entries."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-def _migrate_old_schema(old: dict, tid: str) -> dict:
-    """
-    Convert a flat-schema ghost file to the new three-section format
-    Old format:  {"turns": N, "positions": [[x,y], ...]}
-    New format:  {"metadata": {...}, "ghost": {...}, "leaderboard": [...]}
-    """
+
+# ── Schema migration ──────────────────────────────────────────────────────────
+
+def _migrate(old: dict, tid: str) -> dict:
+    """Upgrade a v1 (flat) ghost file to the v2 schema in-place."""
     turns     = old.get("turns", 0)
     positions = old.get("positions", [])
-
+    name      = old.get("ghost", {}).get("racer_name", "You") \
+                if "ghost" in old else "You"
     return {
         "metadata": {
             "track_id":    tid,
+            "schema_ver":  _SCHEMA_VER,
             "created_iso": _now_iso(),
         },
         "ghost": {
-            "turns":     turns,
-            "positions": positions,
+            "turns":      turns,
+            "racer_name": name,
+            "positions":  positions,
         },
         "leaderboard": [
-            {"name": "You", "turns": turns, "date": _now_date()}
+            {"name": name, "turns": turns, "date": _now_date()}
         ],
     }
 
-# ── File I/O ──────────────────────────────────────────────────────────────────
+
+# ── Atomic file I/O ───────────────────────────────────────────────────────────
+
+def _write_atomic(path: str, data: dict) -> bool:
+    """Write *data* to *path* via a temp file, returning True on success."""
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+        return True
+    except OSError as exc:
+        print(f"[GHOST] Write failed for {path}: {exc}")
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
+
+
+# ── Public load / save ────────────────────────────────────────────────────────
 
 def load_ghost(tid: str) -> dict | None:
-    """Return ghost dict or None if no record exists for this track."""
-    path = ghost_filepath(tid)
+    """
+    Return the ghost dict for tid, or None if no file exists.
+    
+    """
+    path = _ghost_filepath(tid)
     if not os.path.exists(path):
         return None
     try:
         with open(path, "r") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"[GHOST] Could not load {path}: {e}")
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"[GHOST] Could not load {path}: {exc}")
         return None
-    
-    if "metadata" not in data:
-        print(f"[GHOST] Migrating old schema for track {tid}")
-        data = _migrate_old_schema(data, tid)
-        # Write migrated file immediately so future loads use new schema
-        try:
-            with open(path, "w") as f:
-                json.dump(data, f, indent=2)
-        except IOError as e:
-            print(f"[GHOST] Migration write failed: {e}")
+
+    if data.get("metadata", {}).get("schema_ver", 1) < _SCHEMA_VER:
+        print(f"[GHOST] Migrating {tid} to schema v{_SCHEMA_VER}")
+        data = _migrate(data, tid)
+        _write_atomic(path, data)
 
     return data
 
 
 def save_ghost(tid: str,
                positions: list[tuple[int, int]],
-               turns: int, racer_name="You") -> bool:
+               turns: int,
+               racer_name: str = "You") -> bool:
     """
-    Save ghost data if the new run beats the existing record.
-    Returns True if the file was updated (new record set).
+    Persist a race run for *tid*.
+    Returns True if a new fastest ghost was recorded.
     """
+    path     = _ghost_filepath(tid)
     existing = load_ghost(tid)
     is_new_record = False
 
     if existing is None:
-        # First ever run on this track — create a fresh file
         data = {
             "metadata": {
                 "track_id":    tid,
+                "schema_ver":  _SCHEMA_VER,
                 "created_iso": _now_iso(),
             },
             "ghost": {
-                "turns":     turns,
-                "positions": [[x, y] for x, y in positions],
+                "turns":      turns,
                 "racer_name": racer_name,
+                "positions":  [[x, y] for x, y in positions],
             },
             "leaderboard": [
                 {"name": racer_name, "turns": turns, "date": _now_date()}
             ],
         }
         is_new_record = True
-        print(f"[GHOST] First record on this track: {turns} turns.")
-
+        print(f"[GHOST] First record on {tid}: {turns} turns by {racer_name}.")
     else:
         data = existing
-
-        # ── 1. Ghost update ───────────────────────────────────────────────────
         current_best = data.get("ghost", {}).get("turns", float("inf"))
+
+        # Update fastest ghost
         if turns < current_best:
             data["ghost"] = {
-                "turns":     turns,
-                "positions": [[x, y] for x, y in positions],
+                "turns":      turns,
+                "racer_name": racer_name,
+                "positions":  [[x, y] for x, y in positions],
             }
             is_new_record = True
-            print(f"[GHOST] New record: {turns} turns (was {current_best}).")
+            print(f"[GHOST] New record on {tid}: {turns} turns "
+                  f"(was {current_best}) by {racer_name}.")
         else:
-            print(f"[GHOST] No new record. Best: {current_best}, yours: {turns}.")
+            print(f"[GHOST] No new record on {tid}. "
+                  f"Best: {current_best}, yours: {turns}.")
 
-        # ── 2. Leaderboard update ─────────────────────────────────────────────
+        # Always append to leaderboard
         board = data.get("leaderboard", [])
         board.append({"name": racer_name, "turns": turns, "date": _now_date()})
         board.sort(key=lambda e: e["turns"])
         data["leaderboard"] = board[:LEADERBOARD_MAX]
 
-    # Write atomically via a temp file to avoid corruption on crash
-    path     = ghost_filepath(tid)
-    tmp_path = path + ".tmp"
-    try:
-        with open(tmp_path, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp_path, path)
-    except IOError as e:
-        print(f"[GHOST] Write failed: {e}")
-
+    _write_atomic(path, data)
     return is_new_record
 
-def get_leaderboard(tid: str) -> list:
-    """
-    Return the leaderboard list for this track, or [] if no file exists.
 
-    dict: {"name": str, "turns": int, "date": str}.
-    """
+def get_leaderboard(tid: str) -> list[dict]:
+    """Return the leaderboard for *tid*, or [] if no file exists."""
     data = load_ghost(tid)
     if data is None:
         return []
     return data.get("leaderboard", [])
 
 
-# ── Active recorder ───────────────────────────────────────────────────────────
+def is_top5_time(tid: str, turns: int) -> bool:
+    """Return True if *turns* would place in the top-5 for this track."""
+    board = get_leaderboard(tid)
+    if len(board) < LEADERBOARD_MAX:
+        return True
+    return turns < board[-1]["turns"]
+
+
+# ── Live recorder ─────────────────────────────────────────────────────────────
 
 class GhostRecorder:
-    """
-    Records the player's (x, y) position after each executed turn.
-    Attach to the PLAYER racer and call record() in the EXECUTE phase.
-    """
+    """Appends the player's grid position after each executed turn."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.positions: list[tuple[int, int]] = []
 
     def record(self, x: int, y: int) -> None:
@@ -187,19 +197,17 @@ class GhostRecorder:
 # ── Replay car ────────────────────────────────────────────────────────────────
 
 class GhostCar:
-    """
-    Reads a saved ghost and provides its position for any given turn.
-    The ghost is drawn as a semi-transparent overlay during a race.
-    """
+    """Replays a saved ghost run as a semi-transparent overlay."""
 
-    def __init__(self, ghost_data: dict):
-        ghost_section = ghost_data.get("ghost", ghost_data)
-        raw = ghost_section.get("positions", [])
+    def __init__(self, ghost_data: dict) -> None:
+        section = ghost_data.get("ghost", ghost_data)
+        raw = section.get("positions", [])
         self.positions:  list[tuple[int, int]] = [(p[0], p[1]) for p in raw]
-        self.best_turns: int = ghost_section.get("turns", 0)
+        self.best_turns: int                   = section.get("turns", 0)
+        self.racer_name: str                   = section.get("racer_name", "You")
 
     def get_position(self, turn: int) -> tuple[int, int] | None:
-        """Return ghost position at 'turn', clamped to last known position."""
+        """Return ghost position at *turn*, clamped to the last known position."""
         if not self.positions:
             return None
         return self.positions[min(turn, len(self.positions) - 1)]

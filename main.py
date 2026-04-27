@@ -36,6 +36,7 @@ from ghost_recorder import (
     save_ghost, 
     track_id,
     LEADERBOARD_MAX,
+    is_top5_time,
 )
 from obstacles import Obstacle, generate_obstacles          
 from solver import AStarSolver
@@ -671,22 +672,22 @@ def main():
                 # ── WIN / LOSE ─────────────────────────────────────────────────
                 elif gsm.is_in(GameState.WIN, GameState.LOSE):
 
-                     if gsm == GameState.WIN and post_race_phase == "NAME_INPUT":
+                    if gsm == GameState.WIN and post_race_phase == "NAME_INPUT":
                         if event.key == pygame.K_RETURN:
-                            name = post_race_name_buffer.strip() or "You"
-                            save_ghost(tid, ghost_recorder.positions,
-                                       current_turn, racer_name=name)
-                            post_race_phase = "SAVED"
+                             name = post_race_name_buffer.strip() or "You"
+                             save_ghost(tid, ghost_recorder.positions,
+                             current_turn, racer_name=name)
+                             post_race_phase = "SAVED"
                         elif event.key == pygame.K_ESCAPE:
-                            post_race_phase = "SAVED"   # user declined to save
+                         post_race_phase = "SAVED"
                         elif event.key == pygame.K_BACKSPACE:
-                            post_race_name_buffer = post_race_name_buffer[:-1]
+                         post_race_name_buffer = post_race_name_buffer[:-1]
                         else:
                             ch = event.unicode
                             if ch and ch.isprintable() and len(post_race_name_buffer) < 20:
-                                post_race_name_buffer += ch
-                        continue   # swallow all other keys while naming
-                     if event.key == pygame.K_r:
+                             post_race_name_buffer += ch
+                        continue
+                    if event.key == pygame.K_r:
                         reset_racers(racers, start_state)
                         ghost_recorder.reset()
                         ghost_car        = _load_ghost_car(tid)
@@ -1158,9 +1159,12 @@ def main():
 
                 # End conditions
                 if player_racer.finished:
-                    # defer ghost save — handled in WIN state
-                    post_race_phase = "CHECK"
+                    # Evaluate top-5 status here
+                    post_race_is_top5     = is_top5_time(tid, current_turn)
+                    post_race_phase       = "NAME_INPUT" if post_race_is_top5 else "SAVE_NOW"
+                    post_race_name_buffer = ""
                     gsm.transition(GameState.WIN)
+            
                 elif player_racer.crashed or current_turn >= s.MAX_TURNS:
                     gsm.transition(GameState.LOSE)
                 else:
@@ -1248,30 +1252,22 @@ def main():
         # WIN
         # ═════════════════════════════════════════════════════════════════════
         elif gsm == GameState.WIN:
-
-             # ── Post-race phase resolution ──────────────────────────
-            if post_race_is_top5:
-                post_race_phase       = "NAME_INPUT"
-                post_race_name_buffer = ""
-            else:
-                new_record      = save_ghost(tid, ghost_recorder.positions,   
-                                 current_turn, racer_name="You")
-            post_race_phase = "SAVED"
-
-            # --- "NAME_INPUT" RETURN key handler ---
-            name       = post_race_name_buffer.strip() or "You"
-            new_record = save_ghost(tid, ghost_recorder.positions,      
-                        current_turn, racer_name=name)
-            post_race_phase = "SAVED"
-
+ 
+            # ── One-shot save logic ───────────────────────────────────────────
+            # "SAVE_NOW" fires exactly once: save silently, then advance to
+            # "SAVED" so the normal WIN screen is drawn on the next frame.
+            if post_race_phase == "SAVE_NOW":
+                new_record      = save_ghost(tid, ghost_recorder.positions,
+                                             current_turn, racer_name="You")
+                post_race_phase = "SAVED"
+ 
             # ── Name-input overlay ────────────────────────────────────────────
-            if post_race_phase == "NAME_INPUT":
+            elif post_race_phase == "NAME_INPUT":
                 draw_overlay(screen, alpha=175, color=(0, 10, 0))
                 draw_text(screen, "YOU WIN  —  TOP 5 TIME!",
                           48, s.FLASH_GOLD,
                           s.screen_width // 2, s.screen_height // 2 - 130)
-                draw_text(screen,
-                          f"Finished in {current_turn} turns",
+                draw_text(screen, f"Finished in {current_turn} turns",
                           24, s.white,
                           s.screen_width // 2, s.screen_height // 2 - 76)
                 draw_panel(screen, s.screen_width // 2,
@@ -1282,8 +1278,8 @@ def main():
                           s.screen_width // 2, s.screen_height // 2 - 36,
                           bold=False)
                 cursor  = "|" if int(time.time() * 2) % 2 == 0 else " "
-                display = (post_race_name_buffer + cursor) if post_race_name_buffer \
-                          else f"You{cursor}"
+                display = (post_race_name_buffer + cursor) \
+                          if post_race_name_buffer else f"You{cursor}"
                 draw_text(screen, display, 30, s.white,
                           s.screen_width // 2, s.screen_height // 2 + 4)
                 draw_text(screen,
@@ -1291,46 +1287,55 @@ def main():
                           13, (90, 90, 110),
                           s.screen_width // 2, s.screen_height // 2 + 46,
                           bold=False)
-                pygame.display.flip()
-                continue   # skip normal WIN drawing this frame
-
-            draw_overlay(screen, alpha=175, color=(0, 10, 0))
-            draw_text(screen, "YOU  WIN",
-                    60, s.yellow, s.screen_width // 2,
-                    s.screen_height // 2 - 110)
-            mins = current_turn // 60
-            secs = current_turn % 60
-            draw_text(screen,
-                    f"Finished in  {current_turn} turns  ({mins}m {secs}s equiv.)",
-                    26, s.white,
-                    s.screen_width // 2, s.screen_height // 2 - 45)
-            if new_record:
-                draw_pulsing_text(screen, "NEW  GHOST  RECORD",
-                                28, s.green,
-                                s.screen_width // 2, s.screen_height // 2)
-            elif ghost_car:
-                diff = current_turn - ghost_car.best_turns
-                col  = s.green if diff <= 0 else s.red
-                sign = "+" if diff > 0 else ""
+                # Key handling for NAME_INPUT is already in the event loop.
+                # When RETURN is pressed it saves and sets post_race_phase = "SAVED".
+ 
+            # ── Normal WIN screen (post_race_phase == "SAVED") ─────────────────
+            if post_race_phase == "SAVED":
+                draw_overlay(screen, alpha=175, color=(0, 10, 0))
+                draw_text(screen, "YOU  WIN",
+                          60, s.yellow, s.screen_width // 2,
+                          s.screen_height // 2 - 110)
+                mins = current_turn // 60
+                secs = current_turn % 60
                 draw_text(screen,
-                        f"Ghost: {ghost_car.best_turns} turns  ({sign}{diff})",
-                        22, col, s.screen_width // 2, s.screen_height // 2)
-            board = get_leaderboard(tid)
-            if board:
-                draw_track_leaderboard(
-                    screen, board,
-                    cx=s.screen_width // 2,
-                    cy=s.screen_height // 2 + 46)
-            pygame.draw.line(screen, (40, 80, 40),
-                            (150, s.screen_height // 2 + 30),
-                            (s.screen_width - 150, s.screen_height // 2 + 30), 1)
-            draw_hint_row(screen, "R", "Race again (same track)",
-                        s.screen_width // 2, s.screen_height // 2 + 60,
-                        highlight=True)
-            draw_hint_row(screen, "G", "Generate a new track",
-                        s.screen_width // 2, s.screen_height // 2 + 95)
-            draw_hint_row(screen, "M", "Main menu",
-                        s.screen_width // 2, s.screen_height // 2 + 130)
+                          f"Finished in  {current_turn} turns"
+                          f"  ({mins}m {secs}s equiv.)",
+                          26, s.white,
+                          s.screen_width // 2, s.screen_height // 2 - 45)
+ 
+                if new_record:
+                    draw_pulsing_text(screen, "NEW  GHOST  RECORD",
+                                      28, s.green,
+                                      s.screen_width // 2,
+                                      s.screen_height // 2)
+                elif ghost_car:
+                    diff = current_turn - ghost_car.best_turns
+                    col  = s.green if diff <= 0 else s.red
+                    sign = "+" if diff > 0 else ""
+                    draw_text(screen,
+                              f"Ghost: {ghost_car.best_turns} turns  ({sign}{diff})",
+                              22, col,
+                              s.screen_width // 2, s.screen_height // 2)
+ 
+                board = get_leaderboard(tid)
+                if board:
+                    draw_track_leaderboard(
+                        screen, board,
+                        cx=s.screen_width // 2,
+                        cy=s.screen_height // 2 + 46)
+ 
+                pygame.draw.line(screen, (40, 80, 40),
+                                 (150, s.screen_height // 2 + 30),
+                                 (s.screen_width - 150,
+                                  s.screen_height // 2 + 30), 1)
+                draw_hint_row(screen, "R", "Race again (same track)",
+                              s.screen_width // 2,
+                              s.screen_height // 2 + 60, highlight=True)
+                draw_hint_row(screen, "G", "Generate a new track",
+                              s.screen_width // 2, s.screen_height // 2 + 95)
+                draw_hint_row(screen, "M", "Main menu",
+                              s.screen_width // 2, s.screen_height // 2 + 130)
 
         # ═════════════════════════════════════════════════════════════════════
         # LOSE
@@ -1435,16 +1440,6 @@ def draw_player_triangle(screen, player_racer, track):
     pygame.draw.polygon(screen, (20,  20,  20),  [tip, left_, right_], 1)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Post-race helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _is_top5_time(tid: str, turns: int) -> bool:
-    """Return True if `turns` would rank in the top-5 for this track."""
-    board = get_leaderboard(tid)
-    if len(board) < LEADERBOARD_MAX:
-        return True
-    return turns < board[-1]["turns"]
 
 if __name__ == "__main__":
     main()
