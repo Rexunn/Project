@@ -76,7 +76,8 @@ class AStarSolver:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def astar_search(self, start_state, target_coords: list,
-                     avoid_tile: int | None = None):
+                     avoid_tile: int | None = None,
+                     node_limit: int | None = None):
         """
         Optimised A* to a single target set.
         """
@@ -127,6 +128,8 @@ class AStarSolver:
                 continue
 
             explored.append(cur)
+            if node_limit is not None and len(explored) > node_limit:
+                break   # chromosome likely unsolvable — return None for fitness = 0
             x, y, vx, vy = cur
 
             # ── Goal test ──────────────────────────────────────────────────
