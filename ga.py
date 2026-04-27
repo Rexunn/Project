@@ -201,7 +201,7 @@ class GeneticAlgorithm:
                  num_waypoints:   int  = 6,        
                  sharpness:       str  = "Normal"  # 
                  ):
-        self.cols = s.screen_width  // 20
+        self.cols = s.GAME_WIDTH  // 20
         self.rows = s.screen_height // 20
 
         self.population_size = population_size

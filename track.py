@@ -11,7 +11,7 @@ class Track:
         """
         #define grid size
         self.TILE_SIZE = 20  
-        self.cols = s.screen_width // self.TILE_SIZE
+        self.cols = s.GAME_WIDTH // self.TILE_SIZE
         self.rows = s.screen_height // self.TILE_SIZE
         
         self.grid = []
@@ -20,7 +20,7 @@ class Track:
             #load image
             self.surface = pygame.image.load(image_path)
             #resize to fit screen
-            self.surface = pygame.transform.scale(self.surface, (s.screen_width, s.screen_height))
+            self.surface = pygame.transform.scale(self.surface, (s.GAME_WIDTH, s.screen_height))
             print(f"Track loaded. Generating {self.cols}x{self.rows} grid...")
             self._image_to_grid()
         except FileNotFoundError:
@@ -102,7 +102,7 @@ class Track:
         """
         track = cls.__new__(cls)  #create instance without calling __init__
         track.TILE_SIZE = 20
-        track.cols = s.screen_width // track.TILE_SIZE
+        track.cols = s.GAME_WIDTH // track.TILE_SIZE
         track.rows = s.screen_height // track.TILE_SIZE
         track.grid = grid
 
@@ -113,7 +113,7 @@ class Track:
 
     def _grid_to_surface(self):
         """Convert the grid into a pygame surface for drawing"""
-        surface = pygame.Surface((s.screen_width, s.screen_height))
+        surface = pygame.Surface((s.GAME_WIDTH, s.screen_height))
         import random
 
         # Visual themes for the walls and road

@@ -745,9 +745,10 @@ def main():
         
         # ── Background ────────────────────────────────────────────────────────
         if track:
-            screen.fill(s.gray)
+            # Fill only the game canvas — sidebar is handled separately
+            pygame.draw.rect(screen, s.gray, (0, 0, s.GAME_WIDTH, s.screen_height))
             track.draw(screen)
-            # Dark fill for sidebar area (overrides gray spill)
+            # Dark fill for sidebar area
             sidebar_bg = pygame.Surface((s.SIDEBAR_WIDTH, s.screen_height))
             sidebar_bg.fill((10, 10, 22))
             screen.blit(sidebar_bg, (s.GAME_WIDTH, 0))
