@@ -712,9 +712,6 @@ def draw_sidebar(screen: pygame.Surface,
     """
     Right-hand sidebar rendered outside the game canvas.
 
-    Sections (top → bottom):
-      1. Live race leaderboard (all 4 racers)
-      2. Controls hint cheat-sheet
     """
     sx = s.GAME_WIDTH          # left edge of sidebar
     sw = s.SIDEBAR_WIDTH       # sidebar pixel width
@@ -818,9 +815,11 @@ def draw_sidebar(screen: pygame.Surface,
 def draw_nav_arrow(screen: pygame.Surface,
                    player_racer,
                    checkpoint_clusters: list,
+                   finish_coords: list,
                    tile_size: int) -> None:
     """
     Yellow arrow physically attached to the player circle, pointing toward
+    the next checkpoint
     """
     if player_racer.crashed or player_racer.finished:
         return
@@ -828,21 +827,34 @@ def draw_nav_arrow(screen: pygame.Surface,
     # ── Find target centroid ──────────────────────────────────────────────────
     nxt = len(player_racer.checkpoints_cleared)
     if nxt < len(checkpoint_clusters):
+        # Point to next checkpoint
         cl  = checkpoint_clusters[nxt]
         tcx = sum(x for x, _ in cl) / len(cl)
         tcy = sum(y for _, y in cl) / len(cl)
+    elif finish_coords:
+        # All CPs cleared — point to finish line centroid
+        tcx = sum(x for x, _ in finish_coords) / len(finish_coords)
+        tcy = sum(y for _, y in finish_coords) / len(finish_coords)
     else:
-        # All CPs cleared — point toward finish
-        tcx, tcy = player_racer.state.x, player_racer.state.y  # fallback
+        return   # nothing to point at
 
     # ── Player screen centre ──────────────────────────────────────────────────
     px = player_racer.state.x * tile_size + tile_size // 2
     py = player_racer.state.y * tile_size + tile_size // 2
 
-    # Direction angle from player to target
+    # Direction angle from player to target (in grid space, then scaled)
     dx = tcx * tile_size + tile_size // 2 - px
     dy = tcy * tile_size + tile_size // 2 - py
+
+    # If already exactly on the target tile, nothing useful to draw
+    if dx == 0 and dy == 0:
+        return
+
     angle = math.atan2(dy, dx)   # radians; 0 = rightward
+
+    # Arrow colour: green when pointing to finish, yellow for checkpoints
+    all_cps_done = (nxt >= len(checkpoint_clusters))
+    arrow_col    = s.green if all_cps_done else s.yellow
 
     # Arrow geometry
     orbit  = tile_size + 4       # distance from player centre to arrow tip
@@ -865,8 +877,8 @@ def draw_nav_arrow(screen: pygame.Surface,
     r_y = base_y - math.sin(perp) * a_half
 
     pts = [(int(tip_x), int(tip_y)), (int(l_x), int(l_y)), (int(r_x), int(r_y))]
-    pygame.draw.polygon(screen, s.yellow, pts)
-    pygame.draw.polygon(screen, s.black,  pts, 1)
+    pygame.draw.polygon(screen, arrow_col, pts)
+    pygame.draw.polygon(screen, s.black,   pts, 1)
 
 
 # ── Floating speedometer ──────────────────────────────────────────────────────
