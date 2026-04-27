@@ -255,7 +255,8 @@ class GeneticAlgorithm:
 
         start_state   = CarState(start[0], start[1], 0, 0)
         finish_coords = [(finish[0], finish[1])]
-        path, _       = solver.astar_search(start_state, finish_coords)
+        path, _       = solver.astar_search(start_state, finish_coords,
+                                            node_limit=12_000)
 
         if path is None or len(path) < 3:
             return 0
