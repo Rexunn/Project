@@ -1,8 +1,14 @@
 import pygame
 
 # ── Screen ────────────────────────────────────────────────────────────────────
-screen_width  = 1000
+screen_width  = 1200          # total window width (game canvas + sidebar)
 screen_height = 800
+
+# ── Sidebar layout ────────────────────────────────────────────────────────────
+SIDEBAR_WIDTH   = 200         # pixel width of the right-hand sidebar
+GAME_WIDTH      = screen_width - SIDEBAR_WIDTH   # = 1000 — the playable canvas
+BORDER_THICK    = 3           # game-canvas border thickness (px)
+BORDER_COLOUR   = (70, 70, 110)  # matches FLASH_PANEL_BORDER
 
 # ── Frames ────────────────────────────────────────────────────────────────────
 fps = 30
