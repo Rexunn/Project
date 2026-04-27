@@ -91,17 +91,9 @@ def draw_hint_row(screen: pygame.Surface, key: str, description: str,
 def draw_lives(screen: pygame.Surface,
                lives: int, max_lives: int,
                x: int, y: int) -> None:
-    """Row of coloured circles showing lives remaining."""
-    radius = 8
-    gap    = 22
-    total_w = max_lives * gap
-    sx = x - total_w // 2
-    for i in range(max_lives):
-        cx     = sx + i * gap + radius
-        filled = i < lives
-        color  = s.red if filled else (50, 50, 50)
-        pygame.draw.circle(screen, color, (cx, y), radius)
-        pygame.draw.circle(screen, (160, 160, 160), (cx, y), radius, 1)
+    """Simple 'Lives x N' text string — replaces icon-row format."""
+    color = s.red if lives <= 1 else (220, 220, 220)
+    draw_text(screen, f"Lives x {lives}", 14, color, x, y, bold=True)
 
 
 # ── HUD: speed gauge ─────────────────────────────────────────────────────────
@@ -694,3 +686,217 @@ def draw_pause_menu(screen: pygame.Surface) -> None:
               "The current turn was completed before pausing.",
               15, (110, 110, 130),
               s.screen_width // 2, s.screen_height // 2 + 100, bold=False)
+
+# ── Game canvas border ────────────────────────────────────────────────────────
+
+def draw_game_border(screen: pygame.Surface) -> None:
+    """
+    Draw a visible border around the main game canvas (GAME_WIDTH × screen_height).
+    The sidebar sits to the right; this border separates the two areas visually.
+    """
+    pygame.draw.rect(
+        screen,
+        s.BORDER_COLOUR,
+        (0, 0, s.GAME_WIDTH, s.screen_height),
+        s.BORDER_THICK,
+    )
+
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+
+def draw_sidebar(screen: pygame.Surface,
+                 racers: list,
+                 checkpoint_clusters: list,
+                 current_turn: int,
+                 weather: str) -> None:
+    """
+    Right-hand sidebar rendered outside the game canvas.
+
+    Sections (top → bottom):
+      1. Live race leaderboard (all 4 racers)
+      2. Controls hint cheat-sheet
+    """
+    sx = s.GAME_WIDTH          # left edge of sidebar
+    sw = s.SIDEBAR_WIDTH       # sidebar pixel width
+    sh = s.screen_height
+    cx = sx + sw // 2          # horizontal centre of sidebar
+
+    # ── Background panel ──────────────────────────────────────────────────────
+    sidebar_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    sidebar_surf.fill((10, 10, 22, 235))
+    screen.blit(sidebar_surf, (sx, 0))
+
+    # Left border line (visual separator from game canvas)
+    pygame.draw.line(screen, s.BORDER_COLOUR, (sx, 0), (sx, sh), s.BORDER_THICK)
+
+    # ── Section: Live Leaderboard ─────────────────────────────────────────────
+    draw_text(screen, "LEADERBOARD", 12, s.FLASH_TEAL, cx, 18)
+    pygame.draw.line(screen, (50, 50, 80), (sx + 6, 30), (sx + sw - 6, 30), 1)
+
+    total_cp = len(checkpoint_clusters)
+
+    def _score(r):
+        if r.crashed:  return (-1, 0, 0)
+        if r.finished: return (100, -(r.finish_turn or 9999), 0)
+        cp   = len(r.checkpoints_cleared)
+        dist = float("inf")
+        if cp < total_cp and checkpoint_clusters[cp]:
+            cl   = checkpoint_clusters[cp]
+            cx_  = sum(tx for tx, _ in cl) / len(cl)
+            cy_  = sum(ty for _, ty in cl) / len(cl)
+            dist = abs(r.state.x - cx_) + abs(r.state.y - cy_)
+        return (1, cp, -dist)
+
+    ranked = sorted(racers, key=_score, reverse=True)
+    labels = ["1ST", "2ND", "3RD", "4TH"]
+    row_h  = 34
+    y      = 44
+
+    for rank, racer in enumerate(ranked):
+        cp      = len(racer.checkpoints_cleared)
+        place   = labels[rank] if rank < 4 else f"{rank+1}TH"
+        is_pl   = racer.type == "PLAYER"
+        col     = s.FLASH_GOLD if is_pl else racer.color
+
+        if racer.finished:
+            status = f"DONE ({racer.finish_turn}t)"
+        elif racer.crashed:
+            status = "OUT"
+        else:
+            status = f"{cp}/{total_cp} CP"
+
+        # Highlight player row
+        if is_pl:
+            hl = pygame.Surface((sw - 8, row_h - 4), pygame.SRCALPHA)
+            hl.fill((255, 255, 255, 22))
+            screen.blit(hl, (sx + 4, y - row_h // 2 + 2))
+
+        # Rank badge
+        draw_text(screen, place, 11, col, sx + 22, y)
+        # Racer name
+        draw_text(screen, racer.name, 12, col, cx - 4, y)
+        # Status
+        draw_text(screen, status, 10, (160, 160, 185), sx + sw - 28, y, bold=False)
+
+        y += row_h
+
+    pygame.draw.line(screen, (50, 50, 80),
+                     (sx + 6, y), (sx + sw - 6, y), 1)
+    draw_text(screen, f"Turn {current_turn}", 11, (110, 110, 140),
+              cx, y + 10, bold=False)
+
+    # ── Section: Controls Hint ────────────────────────────────────────────────
+    hint_y = y + 30
+    draw_text(screen, "CONTROLS", 12, s.FLASH_TEAL, cx, hint_y)
+    pygame.draw.line(screen, (50, 50, 80),
+                     (sx + 6, hint_y + 12), (sx + sw - 6, hint_y + 12), 1)
+
+    hints = [
+        ("Arrows",  "Steer"),
+        ("SPACE",   "Confirm"),
+        ("ESC",     "Pause"),
+        ("W",       "Weather"),
+        ("S",       "Save map"),
+        ("T",       "AI stats"),
+    ]
+    hy = hint_y + 26
+    for key, desc in hints:
+        draw_text(screen, key,  11, s.cyan,           sx + 40, hy)
+        draw_text(screen, desc, 11, (170, 170, 185),  sx + sw - 36, hy, bold=False)
+        hy += 20
+
+    # Weather badge at the bottom
+    wcol  = s.WEATHER_COLOURS.get(weather, s.white)
+    wlbl  = s.WEATHER_LABELS.get(weather, weather)
+    pygame.draw.line(screen, (50, 50, 80),
+                     (sx + 6, hy + 2), (sx + sw - 6, hy + 2), 1)
+    draw_text(screen, wlbl, 13, wcol, cx, hy + 16, bold=False)
+
+
+# ── Navigation arrow (checkpoint pointer) ────────────────────────────────────
+
+def draw_nav_arrow(screen: pygame.Surface,
+                   player_racer,
+                   checkpoint_clusters: list,
+                   tile_size: int) -> None:
+    """
+    Yellow arrow physically attached to the player circle, pointing toward
+    """
+    if player_racer.crashed or player_racer.finished:
+        return
+
+    # ── Find target centroid ──────────────────────────────────────────────────
+    nxt = len(player_racer.checkpoints_cleared)
+    if nxt < len(checkpoint_clusters):
+        cl  = checkpoint_clusters[nxt]
+        tcx = sum(x for x, _ in cl) / len(cl)
+        tcy = sum(y for _, y in cl) / len(cl)
+    else:
+        # All CPs cleared — point toward finish
+        tcx, tcy = player_racer.state.x, player_racer.state.y  # fallback
+
+    # ── Player screen centre ──────────────────────────────────────────────────
+    px = player_racer.state.x * tile_size + tile_size // 2
+    py = player_racer.state.y * tile_size + tile_size // 2
+
+    # Direction angle from player to target
+    dx = tcx * tile_size + tile_size // 2 - px
+    dy = tcy * tile_size + tile_size // 2 - py
+    angle = math.atan2(dy, dx)   # radians; 0 = rightward
+
+    # Arrow geometry
+    orbit  = tile_size + 4       # distance from player centre to arrow tip
+    a_len  = 8                   # length of the arrow head
+    a_half = 4                   # half-width of the arrow base
+
+    # Tip — points toward target
+    tip_x = px + math.cos(angle) * orbit
+    tip_y = py + math.sin(angle) * orbit
+
+    # Base centre (behind the tip)
+    base_x = px + math.cos(angle) * (orbit - a_len)
+    base_y = py + math.sin(angle) * (orbit - a_len)
+
+    # Perpendicular for the base wings
+    perp = angle + math.pi / 2
+    l_x = base_x + math.cos(perp) * a_half
+    l_y = base_y + math.sin(perp) * a_half
+    r_x = base_x - math.cos(perp) * a_half
+    r_y = base_y - math.sin(perp) * a_half
+
+    pts = [(int(tip_x), int(tip_y)), (int(l_x), int(l_y)), (int(r_x), int(r_y))]
+    pygame.draw.polygon(screen, s.yellow, pts)
+    pygame.draw.polygon(screen, s.black,  pts, 1)
+
+
+# ── Floating speedometer ──────────────────────────────────────────────────────
+
+def draw_floating_speed(screen: pygame.Surface,
+                        player_racer,
+                        tile_size: int) -> None:
+    """
+    Speed value displayed in a small pill directly above the player circle.
+    Follows the car every frame so it always stays adjacent to the racer.
+    """
+    if player_racer.crashed or player_racer.finished:
+        return
+
+    spd = max(abs(player_racer.state.vx), abs(player_racer.state.vy))
+
+    px  = player_racer.state.x * tile_size + tile_size // 2
+    py  = player_racer.state.y * tile_size - tile_size     # above the car
+
+    # Colour matches speed-gauge colour logic
+    if   spd >= 5: col = (220, 60,  50)
+    elif spd >= 3: col = (220, 180, 20)
+    else:          col = (50,  210, 80)
+
+    # Pill background
+    pill_w, pill_h = 34, 16
+    pill = pygame.Surface((pill_w, pill_h), pygame.SRCALPHA)
+    pill.fill((0, 0, 0, 150))
+    screen.blit(pill, (px - pill_w // 2, py - pill_h // 2))
+    pygame.draw.rect(screen, col,
+                     (px - pill_w // 2, py - pill_h // 2, pill_w, pill_h), 1)
+
+    draw_text(screen, str(spd), 12, col, px, py)
