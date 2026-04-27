@@ -1087,6 +1087,7 @@ def main():
                                 racer.laps_completed      = saved_laps
                                 racer.checkpoints_cleared = saved_cps
                                 racer.grace_turns_remaining = 3
+                                racer.trail_positions.clear()
                                 respawn_flash_until = time.time() + 0.6
                                 player_ax = 0
                                 player_ay = 0
@@ -1148,6 +1149,7 @@ def main():
                                             racer.laps_completed      = saved_laps
                                             racer.checkpoints_cleared = saved_cps
                                             racer.grace_turns_remaining = 3
+                                            racer.trail_positions.clear()
                                             respawn_flash_until = time.time() + 0.6
                                             player_ax = 0
                                             player_ay = 0
@@ -1395,26 +1397,36 @@ def _load_ghost_car(tid: str) -> GhostCar | None:
 
 def draw_racer_trails(screen, racers, track):
     """
-    Draw a fading dot-trail behind each non-crashed racer using SRCALPHA
-    blending.  Oldest dot = low alpha, newest = high alpha.
+    Draw a fading trail behind each non-crashed racer.
     """
     ts = track.TILE_SIZE
-    n  = s.TRAIL_LENGTH
     for racer in racers:
         if racer.crashed or len(racer.trail_positions) < 2:
             continue
-        total = len(racer.trail_positions)
-        for i, (tx, ty) in enumerate(racer.trail_positions):
-            t       = i / max(1, total - 1)          # 0.0 = oldest, 1.0 = newest
-            alpha   = int(s.TRAIL_MIN_ALPHA + (s.TRAIL_MAX_ALPHA - s.TRAIL_MIN_ALPHA) * t)
-            radius  = max(2, int(ts * 0.22))
-            px      = tx * ts + ts // 2
-            py      = ty * ts + ts // 2
-            surf    = pygame.Surface((radius * 2 + 2, radius * 2 + 2), pygame.SRCALPHA)
-            r_, g_, b_ = racer.color[0], racer.color[1], racer.color[2]
-            pygame.draw.circle(surf, (r_, g_, b_, alpha),
-                               (radius + 1, radius + 1), radius)
-            screen.blit(surf, (px - radius - 1, py - radius - 1))
+        total      = len(racer.trail_positions)
+        r_, g_, b_ = racer.color[0], racer.color[1], racer.color[2]
+
+        pts = [
+            (tx * ts + ts // 2, ty * ts + ts // 2)
+            for tx, ty in racer.trail_positions
+        ]
+
+        surf = pygame.Surface((s.screen_width, s.screen_height), pygame.SRCALPHA)
+
+        # Line segments — alpha interpolated at each segment's midpoint
+        for i in range(len(pts) - 1):
+            t     = (i + 0.5) / max(1, total - 1)   # 0 = oldest, 1 = newest
+            alpha = int(s.TRAIL_MIN_ALPHA + (s.TRAIL_MAX_ALPHA - s.TRAIL_MIN_ALPHA) * t)
+            pygame.draw.line(surf, (r_, g_, b_, alpha), pts[i], pts[i + 1], 2)
+
+        # Small dot at each node, same fade
+        radius = max(2, int(ts * 0.18))
+        for i, (px, py) in enumerate(pts):
+            t     = i / max(1, total - 1)
+            alpha = int(s.TRAIL_MIN_ALPHA + (s.TRAIL_MAX_ALPHA - s.TRAIL_MIN_ALPHA) * t)
+            pygame.draw.circle(surf, (r_, g_, b_, alpha), (px, py), radius)
+
+        screen.blit(surf, (0, 0))
 
 
 def draw_player_triangle(screen, player_racer, track):
