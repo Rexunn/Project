@@ -361,6 +361,8 @@ def draw_obstacles(screen: pygame.Surface,
                              (mid, tile_size - 5), (tile_size - 5, mid), 1)
 
         screen.blit(surf, (px, py))
+        # Red danger outline so obstacles are visible against any track theme
+        pygame.draw.rect(screen, (220, 30, 30), (px, py, tile_size, tile_size), 2)
 
 # ── GA setup screen ─────────────────────────────────────────────────
 
@@ -434,23 +436,6 @@ def draw_static_path_preview(screen: pygame.Surface,
                               alpha: int) -> None:
     """
     Render the full optimal A* path as a single polyline that fades in.
-
-    The path is drawn onto a dedicated SRCALPHA surface at the requested
-    alpha (0–255) so the fade-in is a simple alpha ramp in the caller —
-    no incremental reveal, no frame counters, no accumulation surface.
-
-    The line is drawn in two passes:
-      1. A thicker, darker stroke for contrast against light track surfaces.
-      2. A thinner bright-green stroke on top.
-
-    Parameters
-    ----------
-    preview_path : list[CarState]
-        The ordered list returned by solver.solve().
-    track        : Track
-        Used for TILE_SIZE to convert grid coords → pixel coords.
-    alpha        : int  [0–255]
-        Current opacity; caller increments this each frame.
     """
     if not preview_path or alpha <= 0:
         return
@@ -485,8 +470,6 @@ def draw_wrong_way_banner(screen: pygame.Surface) -> None:
     significantly against the circuit direction.
 
     Purely cosmetic — no physics are altered.
-    The pulse uses a faster sine frequency than draw_pulsing_text so it
-    reads as urgent rather than decorative.
     """
     pulse = (math.sin(time.time() * 8.0 * math.pi) + 1) / 2
     alpha = int(160 + 95 * pulse)
@@ -512,11 +495,6 @@ def draw_wrong_way_banner(screen: pygame.Surface) -> None:
 def draw_naming_overlay(screen: pygame.Surface, name_buffer: str) -> None:
     """
     Render a centred text-input prompt over the PRE_RACE screen.
-
-    Parameters
-    ----------
-    name_buffer : str
-        The character sequence typed so far (does not include .json extension).
     """
     # Dim the screen behind the prompt
     draw_overlay(screen, alpha=160, color=(0, 0, 20))
@@ -561,13 +539,6 @@ def draw_track_leaderboard(screen: pygame.Surface,
                             cx: int, cy: int) -> None:
     """
     Render the top-5 persistent leaderboard for the current track.
-
-    Parameters
-    ----------
-    leaderboard : list of {"name": str, "turns": int, "date": str}
-        Sorted ascending by turns (best first).  At most 5 entries.
-    cx, cy : int
-        Centre pixel of the panel.
     """
     if not leaderboard:
         return
