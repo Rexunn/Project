@@ -456,6 +456,7 @@ class AStarSolver:
 
     def _get_clusters(self, tile_value: int) -> list:
         """Group all tiles of a given value into 8-connected islands."""
+        from collections import deque
         all_pixels = {
             (x, y)
             for y in range(self.rows)
@@ -466,10 +467,10 @@ class AStarSolver:
         while all_pixels:
             seed            = next(iter(all_pixels))
             current_cluster = {seed}
-            queue           = [seed]
+            queue           = deque([seed])   # O(1) popleft vs O(n) list.pop(0)
             all_pixels.discard(seed)
             while queue:
-                cx, cy = queue.pop(0)
+                cx, cy = queue.popleft()
                 for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),
                                 (-1,-1),(-1,1),(1,-1),(1,1)]:
                     nb = (cx + dx, cy + dy)

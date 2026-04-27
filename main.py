@@ -700,9 +700,9 @@ def main():
                         new_record       = False
                         show_dev_stats   = False
                         gsm.transition(GameState.PRE_RACE)
-                     elif event.key == pygame.K_g:
+                    elif event.key == pygame.K_g:
                         gsm.transition(GameState.GENERATING)
-                     elif event.key == pygame.K_m:
+                    elif event.key == pygame.K_m:
                         gsm.transition(GameState.BOOT_MENU)
                 
                 # ── PAUSE MENU ─────────────────────────────────────────────────
