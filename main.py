@@ -364,25 +364,37 @@ def reset_racers(racers, start_state):
         if r.type == "PLAYER":
             r.lives = s.PLAYER_LIVES
 def compute_cp_forward_vectors(checkpoint_clusters: list,
-                                finish_coords: list) -> list:
+                                finish_coords: list,
+                                start_state=None) -> list:
     """
-    Pre-compute a unit "forward" direction vector for each checkpoint.
+    Pre-compute a unit "forward" direction vector for EVERY sector of the
+    circuit, including the opening sector before the first checkpoint.
 
-    For checkpoint[i], the forward vector points from the centroid of
-    checkpoint[i] toward the centroid of checkpoint[i+1].
-    For the final checkpoint, it points toward the finish-line centroid.
+    Sectors produced (length = N+1 for N checkpoints):
+      [0]   start_pos  → CP 0      (sector the player is in at lap start)
+      [i]   CP i-1     → CP i      (for i in 1..N-1)
+      [N]   CP N-1     → finish    (last sector)
 
-    These vectors are used by:
-      - The player wrong-way HUD warning (dot product check).
-      - CPU Easy directional filter (cpu_easy_move with cp_forward=).
+    This gives _compute_wrong_way exactly one vector per sector so
+    `sector_idx = min(nxt_cp, len(vectors)-1)` is always geometrically
+    correct regardless of how many CPs the player has cleared.
 
-    Returns
-    -------
-    list of (float, float) — one unit vector per checkpoint, in order.
+    If start_state is None, sector[0] is omitted and the old N-vector
+    behaviour is preserved (backward-compatible for GA fitness use).
     """
     vectors = []
     n = len(checkpoint_clusters)
 
+    # ── Sector 0: start → CP 0 ───────────────────────────────────────────────
+    if start_state is not None and n > 0:
+        cl0  = checkpoint_clusters[0]
+        cx2  = sum(x for x, _ in cl0) / len(cl0)
+        cy2  = sum(y for _, y in cl0) / len(cl0)
+        dx, dy = cx2 - start_state.x, cy2 - start_state.y
+        length = max(0.001, math.hypot(dx, dy))
+        vectors.append((dx / length, dy / length))
+
+    # ── Sectors 1..N ─────────────────────────────────────────────────────────
     for i in range(n):
         cl = checkpoint_clusters[i]
         cx1 = sum(x for x, _ in cl) / len(cl)
@@ -496,6 +508,7 @@ def main():
 
     # ── Directional enforcement ───────────────────────────────────────────────
     cp_forward_vectors: list = []    # unit vectors, one per checkpoint in order
+    finish_coords:      list = []    # all (x,y) tiles with grid value 3
 
     # ── In-race state ─────────────────────────────────────────────────────────
     current_turn:    int   = 0
@@ -860,7 +873,7 @@ def main():
                 if track.grid[y][x] == 3
             ]
             cp_forward_vectors = compute_cp_forward_vectors(
-                checkpoint_clusters, finish_coords)
+                checkpoint_clusters, finish_coords, start_state=start_state)
 
             # ── AI preview: reset fade state ──────────────────────────────────
             preview_alpha      = 0.0
@@ -1241,7 +1254,7 @@ def main():
 
             # ── Navigation arrow (attached to player, points to next CP) ──────
             draw_nav_arrow(screen, player_racer, checkpoint_clusters,
-                           track.TILE_SIZE)
+                           finish_coords, track.TILE_SIZE)
 
             # ── Floating speedometer above player ─────────────────────────────
             draw_floating_speed(screen, player_racer, track.TILE_SIZE)
